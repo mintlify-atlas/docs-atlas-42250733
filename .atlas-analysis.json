@@ -1,0 +1,111 @@
+{
+  "projectType": "saas",
+  "projectName": "FieldStation42",
+  "projectDescription": "A self-hosted broadcast and cable TV simulator that turns any Linux computer or Raspberry Pi into a multi-channel TV station with scheduled programming, commercials, a web console, and a full REST API.",
+  "theme": "aspen",
+  "primaryColor": "#1a3a5c",
+  "lightColor": "#2e6da4",
+  "darkColor": "#0d1f33",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Channel Configuration",
+            "pages": [
+              "channels/overview",
+              "channels/network-types",
+              "channels/scheduling",
+              "channels/advanced-features"
+            ]
+          },
+          {
+            "group": "System Configuration",
+            "pages": [
+              "configuration/main-config",
+              "configuration/media-organization",
+              "configuration/hardware"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/first-channel",
+              "guides/sequences-marathons",
+              "guides/web-remote",
+              "guides/running-as-service"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/player",
+              "api/stations",
+              "api/catalogs",
+              "api/schedules",
+              "api/build"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Scheduled programming with real daily lineups, prime time blocks, marathons, and seasonal programming",
+    "Multiple channel types: standard, movie, guide, loop, streaming, and web",
+    "Commercials and bumper videos automatically fill breaks between shows",
+    "Browser-based web console for station management at http://localhost:4242",
+    "Web remote for channel control from phones and any networked device",
+    "IR remote support via Flirc USB receiver",
+    "On-screen display with channel banners and now-playing info",
+    "Full REST API (FastAPI/uvicorn) for external automation and integrations",
+    "Raspberry Pi and Linux compatible; also runs on Windows via WSL",
+    "Sequences for playing episodes in order, and probabilistic marathon mode",
+    "Video scramble effects for simulating scrambled cable channels",
+    "Auto-generated bump videos with station metadata"
+  ],
+  "publicApiSurface": [
+    "GET /player/status — Current playback status",
+    "GET /player/channels/{channel} — Change channel (number, up, down)",
+    "POST /player/channels/guide — Switch to guide channel",
+    "GET /player/volume/up — Increase volume",
+    "GET /player/volume/down — Decrease volume",
+    "GET /player/volume/mute — Toggle mute",
+    "POST /player/ticker — Display on-screen ticker message",
+    "GET /stations — List all station configurations",
+    "GET /stations/{network_name} — Get a station configuration",
+    "POST /stations — Create a new station",
+    "PUT /stations/{network_name} — Update a station",
+    "DELETE /stations/{network_name} — Delete a station",
+    "GET /catalogs/{network_name} — Get catalog entries for a station",
+    "GET /catalogs/search/{network_name} — Search catalog",
+    "GET /catalogs/search_all — Search all catalogs",
+    "GET /schedules/{network_name} — Get schedule blocks",
+    "GET /schedules/search/{network_name} — Search schedule",
+    "POST /build/catalog/{network_name} — Rebuild catalog (async)",
+    "GET /build/catalog/status/{task_id} — Poll catalog rebuild status",
+    "POST /build/schedule/add_time/{amount}/{network_name} — Add time to schedule",
+    "POST /build/schedule/reset/{network_name} — Reset schedule",
+    "GET /summary/ — Full station summary (catalog + schedule)"
+  ]
+}

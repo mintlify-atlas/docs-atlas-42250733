@@ -1,0 +1,147 @@
+---
+title: 'Control FieldStation42 with the Web Remote'
+description: 'Use the FieldStation42 web remote to change channels, adjust volume, and send ticker messages from any browser or phone on your local network.'
+---
+
+FieldStation42 includes a built-in web remote that lets you control playback from any device on your local network — no app install required. Open it in a browser on your phone, tablet, or another computer and you have a full remote control for your TV simulator.
+
+## Web console vs web remote
+
+FieldStation42 exposes two different browser interfaces at port 4242:
+
+<CardGroup cols={2}>
+  <Card title="Web console" icon="sliders">
+    **`http://localhost:4242`**
+
+    Station management: create and edit channel configs, rebuild catalogs, build and extend schedules, and view system diagnostics.
+  </Card>
+  <Card title="Web remote" icon="wifi">
+    **`http://localhost:4242/remote`**
+
+    Playback control: change channels, adjust volume, view now-playing information, and send on-screen ticker messages.
+  </Card>
+</CardGroup>
+
+## Accessing from other devices
+
+To open the web remote from a phone or another computer on the same network, replace `localhost` with the IP address of the machine running FieldStation42:
+
+```text
+http://192.168.1.x:4242/remote
+```
+
+<Tip>
+  Bookmark the remote URL on your phone so you always have a remote control within reach. If your machine has a static IP or a local hostname (like `fieldstation.local`), use that instead of the numeric IP so the bookmark stays valid.
+</Tip>
+
+## Web remote features
+
+The web remote provides direct control over the player:
+
+<CardGroup cols={2}>
+  <Card title="Channel control" icon="tv">
+    Channel up and down buttons, plus direct channel number entry to jump straight to a channel.
+  </Card>
+  <Card title="Volume control" icon="volume-2">
+    Volume up, volume down, and mute toggle. Volume adjusts in 5% increments.
+  </Card>
+  <Card title="Now playing" icon="circle-play">
+    Displays current channel and what is playing, pulled live from the player status endpoint.
+  </Card>
+  <Card title="Ticker messages" icon="message-square">
+    Send custom on-screen overlay messages that appear as a ticker on the display.
+  </Card>
+</CardGroup>
+
+## REST API reference
+
+All web remote actions are backed by the player REST API. You can call these endpoints directly from scripts, home automation tools, or any HTTP client.
+
+### Channel control
+
+```bash
+# Jump directly to a channel number
+GET /player/channels/5
+
+# Channel up
+GET /player/channels/up
+
+# Channel down
+GET /player/channels/down
+```
+
+The channel change is written to the channel socket immediately and takes effect on the next player loop.
+
+### Player status
+
+```bash
+GET /player/status
+```
+
+Returns a JSON object with the current playback state, including what is playing on the active channel. The web remote polls this endpoint to keep the now-playing display current.
+
+### Volume control
+
+```bash
+# Increase volume by 5%
+GET /player/volume/up
+
+# Decrease volume by 5%
+GET /player/volume/down
+
+# Toggle mute on/off
+GET /player/volume/mute
+```
+
+All volume endpoints also accept `POST`. FieldStation42 automatically selects the appropriate audio backend (PulseAudio, ALSA `amixer`, or WirePlumber `wpctl`) based on what is available on your system.
+
+### Ticker messages
+
+Send an on-screen overlay message to the display:
+
+```bash
+POST /player/ticker
+Content-Type: application/json
+
+{
+  "message": "Up next: Saturday Night Live",
+  "header": "MyChannel",
+  "style": "fieldstation",
+  "iterations": 2
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message` | string | The main ticker text to display. |
+| `header` | string | Label shown at the start of the ticker. Defaults to `"FS42"`. |
+| `style` | string | Visual style for the ticker. Defaults to `"fieldstation"`. |
+| `iterations` | integer | Number of times the message scrolls across. Defaults to `2`. |
+
+Example using `curl`:
+
+```bash
+curl -X POST http://localhost:4242/player/ticker \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Special marathon tonight at 8!", "header": "MyChannel", "iterations": 3}'
+```
+
+## Physical remote control with IR
+
+If you prefer a physical remote, FieldStation42 supports IR remote control via a **Flirc USB receiver**. Flirc works with virtually any IR remote — program the receiver with the Flirc desktop app, plug it into your FieldStation42 machine, and your remote's buttons map to keyboard events that the player responds to.
+
+<Note>
+  The Flirc USB receiver is a third-party hardware device sold separately. See [flirc.tv](https://flirc.tv) for setup instructions.
+</Note>
+
+## Stopping the player
+
+You can stop the field player entirely via the API:
+
+```bash
+GET /player/commands/stop
+# or
+POST /player/commands/stop
+```
+
+This sends an exit command to the player process. If you are running FieldStation42 as a systemd service, the service will restart the player automatically after the configured `RestartSec` delay.

@@ -1,0 +1,326 @@
+---
+title: "Player API — Playback and Volume Control"
+description: "Control live FieldStation42 playback: change channels, adjust volume, display on-screen tickers, and query player status via the /player endpoints."
+---
+
+The Player API gives you direct control over what is playing on your FieldStation42 system. All endpoints use the `/player` prefix and communicate with the running player process through a command queue or a status socket file. Volume control automatically selects the best available Linux audio backend — PulseAudio (`pactl`), ALSA (`amixer`), or WirePlumber (`wpctl`) — in that order of preference.
+
+---
+
+## GET /player/status
+
+Returns the current playback status by reading the configured status socket file.
+
+```bash
+curl http://localhost:4242/player/status
+```
+
+**Response**
+
+```json
+{
+  "network_name": "Classic TV",
+  "channel_number": 5,
+  "title": "The Honeymooners - S01E03"
+}
+```
+
+<Note>
+If the status socket file does not exist yet (player not started), the response will be `{"error": "Status socket file not found."}`.
+</Note>
+
+---
+
+## GET /player/status/queue_connected
+
+Returns whether the player command queue is currently connected. Use this to confirm the player process is running before sending commands.
+
+```bash
+curl http://localhost:4242/player/status/queue_connected
+```
+
+**Response**
+
+<ResponseField name="queue_connected" type="boolean">
+  `true` if the player command queue is active; `false` if the player is not running.
+</ResponseField>
+
+```json
+{
+  "queue_connected": true
+}
+```
+
+---
+
+## GET /player/channels/{channel}
+
+Changes the current channel or sends a channel-navigation command. The `channel` path parameter accepts three forms:
+
+| Value | Behavior |
+|-------|----------|
+| A number (e.g. `5`) | Tune directly to that channel number |
+| `up` | Change to the next channel up |
+| `down` | Change to the next channel down |
+
+<ParamField path="channel" type="string" required>
+  A numeric channel number, `"up"`, or `"down"`.
+</ParamField>
+
+**Response**
+
+<ResponseField name="command" type="object">
+  The command object that was written to the channel socket.
+
+  <Expandable title="properties">
+    <ResponseField name="command" type="string">
+      One of `"direct"`, `"up"`, or `"down"`.
+    </ResponseField>
+    <ResponseField name="channel" type="integer">
+      The target channel number. Present when `command` is `"direct"`; `-1` otherwise.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Examples**
+
+```bash
+# Tune directly to channel 5
+curl http://localhost:4242/player/channels/5
+
+# Channel up
+curl http://localhost:4242/player/channels/up
+
+# Channel down
+curl http://localhost:4242/player/channels/down
+```
+
+```json
+{"command": {"command": "direct", "channel": 5}}
+```
+
+---
+
+## POST /player/channels/guide
+
+Switches playback to the configured guide channel.
+
+```bash
+curl -X POST http://localhost:4242/player/channels/guide
+```
+
+**Response**
+
+```json
+{"status": "ok"}
+```
+
+---
+
+## GET /player/info
+
+Returns system information including CPU temperature, memory usage, CPU load averages, and platform details.
+
+```bash
+curl http://localhost:4242/player/info
+```
+
+**Response fields**
+
+<ResponseField name="temperature_c" type="number">
+  CPU temperature in degrees Celsius.
+</ResponseField>
+
+<ResponseField name="temperature_f" type="number">
+  CPU temperature in degrees Fahrenheit.
+</ResponseField>
+
+<ResponseField name="temp_source" type="string">
+  Source used to read temperature: `"vcgencmd"` (Raspberry Pi), `"thermal_zone"` (Linux), or `"sensors"` (lm-sensors).
+</ResponseField>
+
+<ResponseField name="memory" type="object">
+  Memory usage breakdown.
+
+  <Expandable title="properties">
+    <ResponseField name="total_gb" type="number">Total physical memory in GB.</ResponseField>
+    <ResponseField name="available_gb" type="number">Available memory in GB.</ResponseField>
+    <ResponseField name="used_gb" type="number">Used memory in GB.</ResponseField>
+    <ResponseField name="used_percent" type="number">Memory used as a percentage of total.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="cpu" type="object">
+  CPU load information.
+
+  <Expandable title="properties">
+    <ResponseField name="cores" type="integer">Number of logical CPU cores.</ResponseField>
+    <ResponseField name="load_1min" type="number">1-minute load average.</ResponseField>
+    <ResponseField name="load_5min" type="number">5-minute load average.</ResponseField>
+    <ResponseField name="load_15min" type="number">15-minute load average.</ResponseField>
+    <ResponseField name="load_percent" type="number">Approximate CPU utilisation percentage derived from the 1-minute load average.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="system" type="object">
+  Platform identification.
+
+  <Expandable title="properties">
+    <ResponseField name="platform" type="string">OS name (e.g. `"Linux"`).</ResponseField>
+    <ResponseField name="architecture" type="string">Machine architecture (e.g. `"aarch64"`).</ResponseField>
+    <ResponseField name="hostname" type="string">System hostname.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "temperature_c": 49.4,
+  "temperature_f": 121,
+  "temp_source": "vcgencmd",
+  "memory": {
+    "total_gb": 4.0,
+    "available_gb": 2.1,
+    "used_gb": 1.9,
+    "used_percent": 47.5
+  },
+  "cpu": {
+    "cores": 4,
+    "load_1min": 1.2,
+    "load_5min": 0.9,
+    "load_15min": 0.8,
+    "load_percent": 30.0
+  },
+  "system": {
+    "platform": "Linux",
+    "architecture": "aarch64",
+    "hostname": "fieldstation"
+  }
+}
+```
+
+---
+
+## Volume control
+
+Three volume endpoints each accept both `GET` and `POST`. All three delegate to the best available audio backend.
+
+<Info>
+Volume control tries PulseAudio (`pactl`) first, then ALSA (`amixer`), then WirePlumber (`wpctl`). A `500` error is returned only if all three fail.
+</Info>
+
+### GET /player/volume/up · POST /player/volume/up
+
+Increases the system volume by 5%. Volume is capped at 100%.
+
+```bash
+curl http://localhost:4242/player/volume/up
+# or
+curl -X POST http://localhost:4242/player/volume/up
+```
+
+### GET /player/volume/down · POST /player/volume/down
+
+Decreases the system volume by 5%.
+
+```bash
+curl http://localhost:4242/player/volume/down
+```
+
+### GET /player/volume/mute · POST /player/volume/mute
+
+Toggles mute on or off.
+
+```bash
+curl http://localhost:4242/player/volume/mute
+```
+
+**Volume response fields**
+
+<ResponseField name="action" type="string">
+  The action performed: `"up"`, `"down"`, or `"mute"`.
+</ResponseField>
+
+<ResponseField name="method" type="string">
+  Audio backend used: `"pulseaudio"`, `"amixer"`, or `"wireplumber"`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Result of the operation: `"success"` or `"capped"` (volume was already at maximum).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable description of what happened.
+</ResponseField>
+
+<ResponseField name="volume" type="string">
+  Current volume level as a string (e.g. `"75%"` or `"MUTED (60%)"`).
+</ResponseField>
+
+```json
+{
+  "action": "up",
+  "method": "pulseaudio",
+  "status": "success",
+  "message": "Volume increased by 5%",
+  "volume": "75%"
+}
+```
+
+---
+
+## POST /player/ticker
+
+Displays an on-screen ticker overlay on the current video output.
+
+```bash
+curl -X POST http://localhost:4242/player/ticker \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Breaking news: channel lineup updated",
+    "header": "FS42",
+    "style": "fieldstation",
+    "iterations": 2
+  }'
+```
+
+**Request body**
+
+<ParamField path="message" type="string" required>
+  The text to display in the scrolling ticker.
+</ParamField>
+
+<ParamField path="header" type="string" default="FS42">
+  Short label shown at the start of the ticker bar.
+</ParamField>
+
+<ParamField path="style" type="string" default="fieldstation">
+  Visual style of the ticker overlay.
+</ParamField>
+
+<ParamField path="iterations" type="integer" default="2">
+  Number of times the message scrolls across the screen.
+</ParamField>
+
+**Response**
+
+```json
+{"status": "success"}
+```
+
+---
+
+## GET /player/commands/stop · POST /player/commands/stop
+
+Stops the player process.
+
+```bash
+curl http://localhost:4242/player/commands/stop
+# or
+curl -X POST http://localhost:4242/player/commands/stop
+```
+
+**Response**
+
+```json
+{"status": "stopped"}
+```

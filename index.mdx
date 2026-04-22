@@ -1,97 +1,61 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "FieldStation42: Self-Hosted TV Simulator"
+description: "Turn any Linux computer or Raspberry Pi into a multi-channel broadcast and cable TV station with scheduled programming, commercials, and a full REST API."
 ---
 
-## Setting up
+FieldStation42 transforms your Linux machine or Raspberry Pi into a fully functioning broadcast and cable TV simulator. Instead of choosing what to watch, you flip channels — and scheduled programming plays on its own timeline, complete with commercials, station bumps, and all the in-between content that made old-school TV feel alive.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get FieldStation42 running in minutes with the step-by-step setup guide.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Installation" icon="download" href="/installation">
+    System requirements, dependencies, and detailed install instructions.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Channel Configuration" icon="tv" href="/channels/overview">
+    Create and configure channels — from traditional networks to streaming stations.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Control playback, manage stations, and build integrations with the REST API.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What FieldStation42 does
 
-Everything you need to create world-class documentation.
+FieldStation42 manages your media library as a real TV schedule. You define what plays on each channel and when — morning cartoons, prime time dramas, late-night movies — and the system builds a continuous schedule automatically. Every channel flips to the right show at the right time, with commercials filling the breaks.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="Scheduled programming" icon="calendar">
+    Build real daily lineups with prime time blocks, marathons, and seasonal configurations.
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Multiple channel types" icon="signal">
+    Standard, movie, guide, loop, streaming, and web channel types for any use case.
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Web console and remote" icon="browser">
+    Manage stations from a browser at `localhost:4242` and control playback from your phone.
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="REST API" icon="plug">
+    Full HTTP API for channel control, status queries, catalog management, and more.
   </Card>
-</Columns>
+</CardGroup>
 
-## Need inspiration?
+## Get started
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<Steps>
+  <Step title="Install dependencies">
+    Install Python 3.10+, MPV, and the required system packages on your Linux machine or Raspberry Pi.
+  </Step>
+  <Step title="Clone and install">
+    Clone the repository and run `bash install.sh` to set up the Python virtual environment and dependencies.
+  </Step>
+  <Step title="Start the web console">
+    Activate the environment and run `python3 station_42.py` to start the web server at `http://localhost:4242`.
+  </Step>
+  <Step title="Create your first channel">
+    Open the web console, create a channel, point it at your media directory, and build the schedule.
+  </Step>
+</Steps>
+
+<Tip>
+  The [Quick Start guide](/quickstart) walks through all four steps in detail, including how to organize your media library for best results.
+</Tip>

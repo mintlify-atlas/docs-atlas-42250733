@@ -1,0 +1,69 @@
+---
+title: "What is FieldStation42? A self-hosted TV simulator"
+description: "FieldStation42 turns any Linux machine or Raspberry Pi into a self-hosted broadcast and cable TV simulator with scheduled programming and commercials."
+---
+
+FieldStation42 transforms your Linux computer or Raspberry Pi into a fully functioning broadcast and cable TV simulator. Instead of choosing something to watch, you flip channels — and scheduled programming plays on its own continuous timeline, complete with commercials, station bumps, and all the in-between content that made old-school TV feel alive.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Scheduled programming" icon="calendar">
+    Build real daily lineups with prime time blocks, marathons, and seasonal configurations. FieldStation42 generates the schedule automatically from your media library.
+  </Card>
+  <Card title="Multiple channel types" icon="signal">
+    Network TV, movie channels, guide channels, radio stations, IPTV streams, and looping displays — each with its own scheduling behavior.
+  </Card>
+  <Card title="Commercials and bumps" icon="film">
+    Short clips fill the breaks between shows automatically, just like real broadcast TV.
+  </Card>
+  <Card title="Web console" icon="browser">
+    Configure and manage all your stations from a browser at `http://localhost:4242`. No command-line required for day-to-day management.
+  </Card>
+  <Card title="Web remote" icon="mobile">
+    Change channels and control playback from your phone or any device on the same network.
+  </Card>
+  <Card title="IR remote support" icon="satellite-dish">
+    Use any IR remote with a Flirc USB receiver for a true TV experience.
+  </Card>
+  <Card title="On-screen display" icon="tv">
+    Channel banners and now-playing info overlay directly on the screen.
+  </Card>
+  <Card title="REST API" icon="plug">
+    Full HTTP API for controlling playback, switching channels, querying status, and building your own integrations.
+  </Card>
+</CardGroup>
+
+## How it works
+
+FieldStation42 manages your media library as a real TV schedule. The system moves through four stages each time you set up a channel:
+
+1. **Media library** — you organize your video files into directories that FieldStation42 can scan.
+2. **Catalog** — FieldStation42 indexes your media, detecting file duration, chapters, and commercial break points.
+3. **Schedule** — the scheduler builds a continuous daily lineup from your catalog, filling slots with the right content at the right time and inserting commercials in the gaps.
+4. **Playback** — the field player reads the live schedule and hands off to MPV at the correct offset, so channels always play in real time regardless of when you tune in.
+
+Every channel runs on its own independent timeline. Tuning to a channel mid-show drops you in at the correct point, just as if you had a real cable box.
+
+## System requirements
+
+| Requirement | Details |
+|-------------|---------|
+| Operating system | Linux — Raspberry Pi OS Bookworm recommended, Ubuntu, Mint, Debian, or WSL on Windows |
+| Python | 3.10 or newer |
+| Media player | MPV |
+
+<Note>
+  FieldStation42 runs on standard desktop Linux as well as Raspberry Pi hardware. Windows users can run it under WSL (Windows Subsystem for Linux).
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quick start" icon="rocket" href="/quickstart">
+    Get FieldStation42 running with your first channel in a few minutes.
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Detailed system requirements, Python dependencies, and service configuration.
+  </Card>
+</CardGroup>

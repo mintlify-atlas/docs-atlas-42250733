@@ -1,0 +1,90 @@
+---
+title: "FieldStation42 REST API — Getting Started"
+description: "Base URL, error format, status codes, and a guide to the six FieldStation42 REST API groups: Player, Stations, Catalogs, Schedules, Build, and Summary."
+---
+
+FieldStation42 exposes a REST API built on [FastAPI](https://fastapi.tiangolo.com), running locally at `http://localhost:4242`. Every feature of the system — from changing channels to rebuilding catalogs — is accessible through this interface, making it straightforward to integrate FieldStation42 into scripts, home-automation tools, or custom frontends.
+
+## Base URL
+
+```
+http://localhost:4242
+```
+
+All paths in this reference are relative to this base URL.
+
+## Interactive documentation
+
+FastAPI generates two interactive API explorers automatically. Both let you send real requests against a running FieldStation42 server.
+
+| Interface | URL |
+|-----------|-----|
+| Swagger UI | `http://localhost:4242/docs` |
+| ReDoc | `http://localhost:4242/redoc` |
+
+## Authentication
+
+No authentication is required. The API is designed for use on a local network and carries no token or session mechanism.
+
+## Request format
+
+For `POST` and `PUT` requests, send a JSON body with the `Content-Type: application/json` header.
+
+```bash
+curl -X POST http://localhost:4242/stations \
+  -H "Content-Type: application/json" \
+  -d '{"station_conf": {"network_name": "My Channel", "channel_number": 5}}'
+```
+
+## Error format
+
+All error responses use the same envelope:
+
+```json
+{
+  "detail": "Error message describing what went wrong"
+}
+```
+
+## Status codes
+
+| Code | Meaning |
+|------|---------|
+| `200 OK` | Request succeeded |
+| `201 Created` | Resource created successfully |
+| `400 Bad Request` | Validation error or missing required field |
+| `404 Not Found` | Requested resource does not exist |
+| `409 Conflict` | Duplicate channel number or network name |
+| `500 Internal Server Error` | Unexpected server-side failure |
+
+## API groups
+
+| Group | Prefix | Description |
+|-------|--------|-------------|
+| Player | `/player` | Control live playback — channels, volume, status, on-screen ticker |
+| Stations | `/stations` | Full CRUD for station configurations |
+| Catalogs | `/catalogs` | Read content catalogs for one or all stations |
+| Schedules | `/schedules` | Read schedule blocks, optionally filtered by date range or search term |
+| Build | `/build` | Trigger and monitor asynchronous catalog and schedule rebuilds |
+| Summary | `/summary` | Aggregated overview of catalog counts and schedule state |
+
+<CardGroup cols={2}>
+  <Card title="Player API" icon="play" href="/api/player">
+    Channel control, volume, playback status, and on-screen ticker.
+  </Card>
+  <Card title="Stations API" icon="tv" href="/api/stations">
+    Create, read, update, and delete station configurations.
+  </Card>
+  <Card title="Catalogs API" icon="database" href="/api/catalogs">
+    Browse and search content catalogs across all stations.
+  </Card>
+  <Card title="Schedules API" icon="calendar" href="/api/schedules">
+    Retrieve schedule blocks with optional date-range filtering.
+  </Card>
+  <Card title="Build API" icon="wrench" href="/api/build">
+    Kick off async catalog and schedule rebuild jobs.
+  </Card>
+  <Card title="Summary API" icon="chart-bar" href="/api/catalogs#summary-endpoints">
+    Station-level overview of catalog counts and schedule state.
+  </Card>
+</CardGroup>

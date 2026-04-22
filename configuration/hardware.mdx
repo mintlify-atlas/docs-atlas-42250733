@@ -1,0 +1,209 @@
+---
+title: "Hardware and Platform Requirements for FieldStation42"
+description: "Supported platforms, system requirements, IR remote setup, display settings, and tips for running FieldStation42 on Raspberry Pi, Linux, or Windows WSL2."
+---
+
+FieldStation42 runs on any Linux system capable of playing video with MPV. The most common deployments are a Raspberry Pi sitting next to a TV and a dedicated Linux PC, but it works equally well on a desktop distro or Windows via WSL2. This page covers what hardware is supported, the minimum requirements, and platform-specific tips.
+
+## Supported platforms
+
+<CardGroup cols={2}>
+  <Card title="Raspberry Pi" icon="raspberry-pi">
+    Raspberry Pi 4 or newer recommended. Raspberry Pi OS Bookworm is the tested and recommended operating system. Older models may struggle with 1080p content.
+  </Card>
+  <Card title="Debian-based Linux" icon="linux">
+    Ubuntu, Linux Mint, Debian, and other Debian-based distributions are fully supported. Install MPV and Python 3.10+ from your package manager.
+  </Card>
+  <Card title="Other Linux" icon="server">
+    Any Linux distribution that can run Python 3.10+ and MPV should work. The installer script targets Debian-based systems; on other distros, install dependencies manually.
+  </Card>
+  <Card title="Windows via WSL2" icon="windows">
+    FieldStation42 runs under WSL2 with additional audio and display configuration. See the [WSL2 notes](#wsl2-notes) below.
+  </Card>
+</CardGroup>
+
+## System requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| Python | 3.10 | 3.11 or newer |
+| MPV | Any recent release | Latest stable |
+| RAM | 2 GB | 4 GB or more for large catalogs |
+| Storage | Depends on media library | SSD for `runtime/` directory |
+
+<Note>
+  The system requirements above cover the FieldStation42 process itself. Media playback memory usage depends on the video codec, resolution, and MPV's decoding mode. Large catalogs (thousands of files) increase the memory footprint of the catalog index.
+</Note>
+
+### Python dependencies
+
+The `install.sh` script creates a Python virtual environment and installs all required packages automatically. Key Python dependencies include:
+
+- **FastAPI** and **Uvicorn** — web server for the console and REST API
+- **python-mpv-jsonipc** — IPC bridge to control MPV
+- **MoviePy** and **ffmpeg-python** — schedule and catalog generation
+- **Textual** — terminal UI components
+- **PySide6** — used for the on-screen display overlay
+
+Install system dependencies before running `install.sh`:
+
+```bash
+sudo apt-get install mpv python3 python3-pip python3-venv
+```
+
+## IR remote support
+
+FieldStation42 supports IR remote controls through a **Flirc USB receiver**. Flirc works with virtually any IR remote — you pair it to your remote of choice using the Flirc desktop app, and it presents itself to the system as a USB keyboard. FieldStation42 then maps those keystrokes to channel-change and playback commands.
+
+Configure IR remote key bindings in the web console under your station's settings. No additional drivers are required.
+
+## On-screen display
+
+FieldStation42 can overlay channel banners and now-playing information directly on the video. The OSD is configured per-station in the station config file.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `logo_dir` | string | Directory containing logo image files |
+| `show_logo` | boolean | Whether to display the station logo |
+| `default_logo` | string | Default logo filename, e.g., `"StationLogo.png"` |
+| `logo_permanent` | boolean | If `true`, the logo stays on screen continuously; if `false`, it may appear and disappear |
+| `multi_logo` | string | Multi-logo configuration identifier for stations with multiple logo variants |
+
+## Display settings
+
+Display behavior is controlled per-station in the station config. These settings are passed directly to MPV.
+
+<AccordionGroup>
+  <Accordion title="Fullscreen and aspect ratio">
+    ```json
+    {
+      "station_conf": {
+        "fullscreen": true,
+        "video_keepaspect": true,
+        "panscan": 1.0
+      }
+    }
+    ```
+
+    - `fullscreen: true` — launch MPV in fullscreen mode
+    - `video_keepaspect: true` — maintain the video's original aspect ratio (default)
+    - `panscan: 1.0` — fill the screen by cropping the edges; useful for 4:3 content on widescreen displays
+  </Accordion>
+  <Accordion title="Window dimensions (guide channels)">
+    Guide channels support fixed window sizing and decoration control:
+
+    ```json
+    {
+      "station_conf": {
+        "network_type": "guide",
+        "width": 1280,
+        "height": 720,
+        "window_decorations": false
+      }
+    }
+    ```
+
+    `width` and `height` set the window size in pixels. `window_decorations: false` removes the title bar and window chrome for a cleaner kiosk-style display.
+  </Accordion>
+</AccordionGroup>
+
+## Running on Raspberry Pi
+
+<Steps>
+  <Step title="Use Raspberry Pi OS Bookworm">
+    Bookworm (Debian 12-based) is the recommended OS. It ships with Python 3.11 and a recent MPV build. Earlier releases may need manual Python or MPV upgrades.
+  </Step>
+  <Step title="Install system dependencies">
+    ```bash
+    sudo apt-get update
+    sudo apt-get install mpv python3 python3-pip python3-venv
+    ```
+  </Step>
+  <Step title="Clone and run the installer">
+    ```bash
+    git clone https://github.com/shane-mason/FieldStation42
+    cd FieldStation42
+    bash install.sh
+    ```
+  </Step>
+  <Step title="Run as a systemd service">
+    The repository includes systemd service files in `install/systemd/` and an installation script at `install/install_services.sh`. Running as a service starts FieldStation42 automatically on boot and restarts it if it crashes.
+
+    ```bash
+    bash install/install_services.sh
+    ```
+  </Step>
+  <Step title="Limit memory for large libraries (optional)">
+    If your catalog is very large, you can cap the memory available to the catalog process:
+
+    ```bash
+    python3 station_42.py --limit_memory 0.8
+    ```
+
+    The value is a fraction of total system RAM. `0.8` limits usage to 80% of available memory.
+  </Step>
+</Steps>
+
+<Tip>
+  For a dedicated TV setup, configure the Pi to boot directly to the desktop (not to a terminal), then rely on the systemd service to launch FieldStation42 and MPV automatically. This avoids needing to log in and start the process manually after a power cycle.
+</Tip>
+
+## WSL2 notes
+
+Running FieldStation42 under WSL2 on Windows requires additional configuration for audio and display output.
+
+<AccordionGroup>
+  <Accordion title="Audio setup">
+    WSL2 does not have a default audio device. You need either PulseAudio or WirePlumber routed to Windows audio output.
+
+    **Check current audio sinks:**
+    ```bash
+    # PulseAudio
+    pactl list sinks short
+
+    # WirePlumber
+    wpctl status
+    ```
+
+    If no sinks appear, install PulseAudio (`sudo apt-get install pulseaudio`) and configure it to connect to a Windows PulseAudio server, or use WSLg's built-in audio support if your WSL2 version includes it.
+  </Accordion>
+  <Accordion title="Display setup">
+    WSL2 requires either **WSLg** (available in recent Windows 11 builds and Windows 10 with updated WSL) or **X11 forwarding** to display MPV's video output on the Windows desktop.
+
+    With WSLg, GUI applications including MPV should launch automatically in a window. Without WSLg, install an X server on Windows (such as VcXsrv or X410) and set the `DISPLAY` environment variable:
+
+    ```bash
+    export DISPLAY=:0
+    ```
+
+    Add this to your `~/.bashrc` so it persists across sessions.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  WSL2 audio and display support varies significantly by Windows version and WSL release. For the most reliable experience, run FieldStation42 on a native Linux installation or Raspberry Pi.
+</Warning>
+
+## Running as a systemd service
+
+The `install/systemd/` directory contains service unit files for running FieldStation42 as a background service. The `install/install_services.sh` script installs and enables them.
+
+Once installed, manage the service with standard `systemctl` commands:
+
+```bash
+# Start the service
+sudo systemctl start fieldstation42
+
+# Stop the service
+sudo systemctl stop fieldstation42
+
+# Check status and recent logs
+sudo systemctl status fieldstation42
+
+# View the full log stream
+journalctl -u fieldstation42 -f
+```
+
+<Note>
+  The systemd service files assume you cloned FieldStation42 into a specific path. Review the unit files in `install/systemd/` and update the `WorkingDirectory` and `ExecStart` paths if your installation is in a non-default location before running the install script.
+</Note>

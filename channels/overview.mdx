@@ -1,0 +1,152 @@
+---
+title: "FieldStation42 Channel Configuration Reference"
+description: "Complete reference for FieldStation42 channel properties — required fields, defaults, scheduling, media paths, display settings, and network type options."
+---
+
+A **channel** in FieldStation42 is a self-contained broadcast unit defined by a single JSON file in the `confs/` directory. Each channel has a number, a name, and a network type that determines how it behaves — from a fully scheduled standard broadcast network to a looping playlist, a live stream, or an interactive program guide. The system reads all `.json` files in `confs/` at startup, applies defaults, resolves template references, and makes each channel available for tuning.
+
+## Minimal configuration
+
+Only two properties are strictly required. All other settings have sensible defaults applied automatically.
+
+```json confs/mychannel.json
+{
+  "station_conf": {
+    "network_name": "MyChannel",
+    "channel_number": 5
+  }
+}
+```
+
+<Note>
+  Configuration files live in the `confs/` directory and are named after the network name in lowercase, with special characters replaced by underscores. For example, `"My Channel 42"` becomes `confs/my_channel_42.json`.
+</Note>
+
+## Required properties
+
+<ParamField path="station_conf.network_name" type="string" required>
+  Display name of the network or channel. Must be unique across all station configurations.
+</ParamField>
+
+<ParamField path="station_conf.channel_number" type="integer" required>
+  Channel number used for tuning. Must be unique across all station configurations.
+</ParamField>
+
+## Default values
+
+When not specified, the following defaults are applied by the system:
+
+| Property | Default |
+|---|---|
+| `network_type` | `"standard"` |
+| `schedule_increment` | `30` |
+| `break_strategy` | `"standard"` |
+| `commercial_free` | `false` |
+| `clip_shows` | `[]` |
+| `break_duration` | `120` |
+| `hidden` | `false` |
+
+## Top-level properties reference
+
+### General
+
+| Property | Type | Description |
+|---|---|---|
+| `network_name` | string | **Required.** Name of the network |
+| `network_long_name` | string | Extended or full network name |
+| `channel_number` | integer | **Required.** Channel number |
+| `network_type` | string | Type of network operation (`standard`, `web`, `guide`, `loop`, `streaming`) |
+| `hidden` | boolean | Hide channel from guide listings |
+| `active_rules` | object | Conditional availability rules (e.g., date range) |
+
+### Scheduling (standard networks)
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `schedule_increment` | integer | `30` | Time slot increment in minutes (`0` for continuous) |
+| `schedule_offset` | integer | — | Minutes offset from hour start for show times |
+| `break_strategy` | string | `"standard"` | When to insert commercials: `standard`, `end`, or `center` |
+| `commercial_free` | boolean | `false` | Disable commercial breaks entirely |
+| `break_duration` | integer | `120` | Commercial break length in seconds |
+| `fallback_tag` | string | — | Tag used when no content matches the scheduled slot |
+
+### Directory paths
+
+| Property | Type | Description |
+|---|---|---|
+| `content_dir` | string | Directory containing video content files |
+| `bump_dir` | string | Directory containing bump/interstitial videos |
+| `commercial_dir` | string | Directory containing commercial videos |
+| `runtime_dir` | string | Directory for runtime data (schedules, catalogs) |
+
+### Media files
+
+| Property | Type | Description |
+|---|---|---|
+| `standby_image` | string | Image shown when channel is on standby |
+| `be_right_back_media` | string | Image or video shown during brief interruptions |
+| `sign_off_video` | string | Video played during the sign-off event |
+| `off_air_video` | string | Video or pattern shown when off-air |
+
+### Data files
+
+| Property | Type | Description |
+|---|---|---|
+| `catalog_path` | string | Path to the binary catalog file (`.bin`) |
+| `schedule_path` | string | Path to the binary schedule file (`.bin`) |
+
+### Video effects
+
+| Property | Type | Description |
+|---|---|---|
+| `video_scramble_fx` | string | Preset scrambling effect name |
+| `station_fx` | string | Custom FFMPEG filter string (ignored if `video_scramble_fx` is set) |
+
+### On-screen display
+
+| Property | Type | Description |
+|---|---|---|
+| `logo_dir` | string | Directory containing logo image files |
+| `show_logo` | boolean | Whether to display the station logo on screen |
+| `default_logo` | string | Default logo filename (e.g., `StationLogo.png`) |
+| `logo_permanent` | boolean | Keep logo on screen permanently |
+| `multi_logo` | string | Multi-logo configuration identifier |
+
+### Display properties
+
+| Property | Type | Description |
+|---|---|---|
+| `video_keepaspect` | boolean | Maintain video aspect ratio |
+| `panscan` | number | MPV panscan value to fill screen by cropping edges |
+| `fullscreen` | boolean | Display in fullscreen mode |
+| `width` | integer | Window width in pixels (guide channels only) |
+| `height` | integer | Window height in pixels (guide channels only) |
+| `window_decorations` | boolean | Show window decorations (guide channels only) |
+
+### Clip shows
+
+| Property | Type | Description |
+|---|---|---|
+| `clip_shows` | array | List of clip show configurations (string or `{tags, duration}` object) |
+
+### Media filter
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `media_filter` | string | `"video"` | Filter media by type: `"video"`, `"audio"`, or `"mixed"` |
+
+Use `"audio"` for radio-style stations, `"mixed"` to include both audio and video files in the catalog.
+
+## Explore further
+
+<CardGroup cols={3}>
+  <Card title="Network types" icon="tv" href="/channels/network-types">
+    Understand the five network types and when to use each one.
+  </Card>
+  <Card title="Scheduling" icon="calendar" href="/channels/scheduling">
+    Configure day schedules, time slots, templates, and break strategies.
+  </Card>
+  <Card title="Advanced features" icon="sliders" href="/channels/advanced-features">
+    Video effects, tag overrides, autobump, active rules, and more.
+  </Card>
+</CardGroup>

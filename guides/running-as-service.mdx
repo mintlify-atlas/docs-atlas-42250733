@@ -1,0 +1,173 @@
+---
+title: 'Run FieldStation42 as a Systemd Service'
+description: 'Set up FieldStation42 to start automatically on boot using systemd user services, so your TV simulator is always running without manual intervention.'
+---
+
+Running FieldStation42 as a systemd user service means the player starts automatically when your machine boots, restarts itself if it crashes, and keeps running even when no one is logged in. This is the recommended setup for a dedicated Raspberry Pi or TV machine.
+
+## Services overview
+
+FieldStation42 provides four separate services, each installed as a **systemd user service** (not a system-wide service). The install script handles all setup automatically.
+
+<CardGroup cols={2}>
+  <Card title="fs42.service" icon="play">
+    **Field Player** — the core content playback service. This is the only required service.
+  </Card>
+  <Card title="fs42-cable-box.service" icon="box">
+    **Cable Box** — physical cable box interface. Enable this if you have a cable box controller connected.
+  </Card>
+  <Card title="fs42-remote-controller.service" icon="remote-control">
+    **Remote Controller** — physical remote controller interface. Enable alongside the cable box service if applicable.
+  </Card>
+  <Card title="fs42-osd.service" icon="monitor">
+    **On-Screen Display** — the visual overlay that shows channel banners and now-playing info. Depends on `fs42.service`.
+  </Card>
+</CardGroup>
+
+## Steps
+
+<Steps>
+  <Step title="Review the service templates">
+    The install script processes template files from `install/systemd/` and replaces `__INSTALL_DIR__` with the actual path to your FieldStation42 installation. The main player service template (`fs42.service`) looks like this:
+
+    ```ini
+    [Unit]
+    Description=FieldStation42 Field Player
+    After=graphical-session.target
+    Requires=graphical-session.target
+
+    [Service]
+    Type=simple
+    WorkingDirectory=__INSTALL_DIR__
+    Environment="DISPLAY=:0"
+    ExecStartPre=/bin/bash -c 'if [ ! -f /tmp/fs42-started ]; then sleep 5; touch /tmp/fs42-started; fi'
+    ExecStart=__INSTALL_DIR__/env/bin/python3 field_player.py
+    Restart=on-failure
+    RestartSec=10
+    StandardOutput=journal
+    StandardError=journal
+
+    [Install]
+    WantedBy=default.target
+    ```
+
+    The service runs from the FieldStation42 directory (`WorkingDirectory`) and uses the Python interpreter in the project's virtual environment (`env/bin/python3`).
+  </Step>
+
+  <Step title="Run the install script">
+    From the FieldStation42 root directory, run:
+
+    ```bash
+    bash install/install_services.sh
+    ```
+
+    The script:
+    1. Detects the current installation directory automatically.
+    2. Creates `~/.config/systemd/user/` if it does not exist.
+    3. Processes each `.template` file in `install/systemd/` and writes the resolved service files to the systemd user directory.
+    4. Reloads the systemd daemon (`systemctl --user daemon-reload`).
+    5. Prompts you to select which services to enable.
+    6. Enables `loginctl linger` so the services run even when you are not logged in.
+
+    You will be prompted for each service:
+
+    ```text
+    Field Player - Main content playback service (core functionality)
+    Enable fs42.service? (Y/n):
+
+    Cable Box - Cable box interface
+    Enable fs42-cable-box.service? (y/N):
+
+    Remote Controller - Remote controller interface
+    Enable fs42-remote-controller.service? (y/N):
+
+    On-Screen Display - Visual overlay (starts 30s after login)
+    Enable fs42-osd.service? (y/N):
+    ```
+
+    At minimum, enable `fs42.service`. The other services are optional depending on your hardware setup.
+  </Step>
+
+  <Step title="Start the services immediately">
+    Enabled services start automatically on the next login. To start them right now without rebooting:
+
+    ```bash
+    systemctl --user start fs42.service
+    ```
+
+    Start optional services the same way:
+
+    ```bash
+    systemctl --user start fs42-osd.service
+    ```
+  </Step>
+
+  <Step title="Check service status">
+    Verify that the player service is running:
+
+    ```bash
+    systemctl --user status fs42.service
+    ```
+
+    To check all FieldStation42 services at once:
+
+    ```bash
+    systemctl --user status fs42*
+    ```
+  </Step>
+
+  <Step title="View logs">
+    Service output is written to the systemd journal. Follow logs in real time:
+
+    ```bash
+    journalctl --user -u fs42.service -f
+    ```
+
+    To view logs for any other service, replace the service name:
+
+    ```bash
+    journalctl --user -u fs42-osd.service -f
+    ```
+
+    <Tip>
+      For persistent log files that survive reboots, start FieldStation42 with the `-l` flag pointing to a log file: `python3 station_42.py -l logs/fs42.log`. You can add this flag to the `ExecStart` line in the service file after installation.
+    </Tip>
+  </Step>
+</Steps>
+
+## Day-to-day service management
+
+```bash
+# Stop a service
+systemctl --user stop fs42.service
+
+# Restart a service
+systemctl --user restart fs42.service
+
+# Disable a service from starting on boot
+systemctl --user disable fs42.service
+```
+
+## Uninstalling the services
+
+To remove all installed service files:
+
+```bash
+bash install/uninstall_services.sh
+```
+
+This stops and disables all FieldStation42 services and removes the service files from `~/.config/systemd/user/`.
+
+## Important notes
+
+<Warning>
+  If you move the FieldStation42 directory to a different location after installing the services, the `WorkingDirectory` and `ExecStart` paths in the installed service files will be wrong. Run `bash install/install_services.sh` again from the new location to reinstall the services with the correct paths.
+</Warning>
+
+<Note>
+  All paths in your channel config files (`content_dir`, `commercial_dir`, `bump_dir`, etc.) are resolved relative to the `WorkingDirectory` set in the service file — which is the FieldStation42 root directory. Keep all paths in your configs relative, not absolute.
+</Note>
+
+<Note>
+  The services are installed as **user services** (`systemctl --user`), not system services. They are tied to your user account. The `loginctl enable-linger` step performed by the install script is what allows them to run when you are not actively logged in.
+</Note>

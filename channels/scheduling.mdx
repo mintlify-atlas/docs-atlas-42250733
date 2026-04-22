@@ -1,0 +1,183 @@
+---
+title: "Scheduling Channels in FieldStation42"
+description: "Define hour-by-hour programming schedules for standard channels, with tags, day templates, slot overrides, and commercial break strategies."
+---
+
+FieldStation42 schedules work like real TV: you assign content tags to time slots across each day of the week, and the system automatically selects matching videos from your catalog to fill each block. Standard network channels require a complete seven-day schedule, though individual days can be completely off-air.
+
+## Day scheduling basics
+
+Every `standard` network channel must define all seven days — `monday` through `sunday` — even if some are empty. Hours not listed in a day are treated as off-air.
+
+```json
+{
+  "station_conf": {
+    "network_name": "Classic TV",
+    "channel_number": 5,
+    "network_type": "standard",
+    "monday": {
+      "7":  {"tags": "morning"},
+      "12": {"tags": "daytime"},
+      "20": {"tags": "prime"},
+      "23": {"tags": "late"}
+    },
+    "tuesday": {},
+    "wednesday": {},
+    "thursday": {},
+    "friday": {},
+    "saturday": {},
+    "sunday": {}
+  }
+}
+```
+
+<Note>
+Hour keys are strings (`"0"` through `"23"`). A missing hour means the channel is off-air during that hour. Days with no programming should still be present as empty objects `{}`.
+</Note>
+
+## Time slot properties
+
+Each hour slot is a JSON object. The most common property is `tags`, which selects content from your catalog.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `tags` | string or array | Content tag(s) to select from the catalog |
+| `event` | string | Special event — only supported value is `"signoff"` |
+| `start_bump` | string | Path to a bump video played before content |
+| `end_bump` | string | Path to a bump video played after content |
+| `bump_dir` | string | Override bump directory for this slot |
+| `commercial_dir` | string | Override commercial directory for this slot |
+| `break_strategy` | string | Override break strategy for this slot |
+| `schedule_increment` | integer | Override time increment (minutes) for this slot |
+| `video_scramble_fx` | string or `false` | Apply a scramble effect, or `false` to disable |
+| `sequence` | string | Sequence identifier for ordered episode playback |
+| `sequence_start` | number | Start point in sequence (0.0–1.0) |
+| `sequence_end` | number | End point in sequence (0.0–1.0) |
+| `random_tags` | boolean | Randomly pick one tag from a tags array |
+| `marathon` | object | Probabilistic multi-episode marathon config |
+| `overrides` | string | Reference to a named `slot_overrides` entry |
+| `continued` | boolean | Inherit the previous hour's tags |
+
+## Tag selection
+
+Tags correspond to subdirectory names under your `content_dir`. You can specify a single tag, or an array for more complex behavior.
+
+<Tabs>
+  <Tab title="Single tag">
+    ```json
+    "20": {"tags": "sitcom"}
+    ```
+    Selects a random video from the `sitcom` folder.
+  </Tab>
+  <Tab title="Half-hour split">
+    ```json
+    "20": {"tags": ["sitcom", "drama"]}
+    ```
+    With `schedule_increment: 30`, the first half-hour uses `sitcom` and the second uses `drama`.
+  </Tab>
+  <Tab title="Random selection">
+    ```json
+    "20": {"tags": ["sitcom", "western", "drama"], "random_tags": true}
+    ```
+    Picks one tag at random from the array each time the slot is scheduled.
+  </Tab>
+</Tabs>
+
+## Schedule increment and break strategy
+
+`schedule_increment` controls the length of each programming block in minutes. `break_strategy` controls where commercials are inserted.
+
+| Property | Values | Default |
+|----------|--------|---------|
+| `schedule_increment` | `0` (continuous), `30`, `60`, etc. | `30` |
+| `break_strategy` | `"standard"`, `"end"`, `"center"` | `"standard"` |
+| `commercial_free` | `true` / `false` | `false` |
+| `break_duration` | seconds | `120` |
+
+- **standard** — commercials interspersed throughout
+- **end** — single break at the end of the program
+- **center** — single break in the middle
+
+## Day templates
+
+Instead of repeating the same schedule for every weekday, define a `day_templates` block and reference it by name:
+
+```json
+{
+  "station_conf": {
+    "network_name": "Classic TV",
+    "channel_number": 5,
+    "day_templates": {
+      "weekday": {
+        "7":  {"tags": "morning"},
+        "12": {"tags": "daytime"},
+        "20": {"tags": "prime"}
+      },
+      "weekend": {
+        "9":  {"tags": "cartoon"},
+        "14": {"tags": "movie"},
+        "20": {"tags": "prime"}
+      }
+    },
+    "monday":    "weekday",
+    "tuesday":   "weekday",
+    "wednesday": "weekday",
+    "thursday":  "weekday",
+    "friday":    "weekday",
+    "saturday":  "weekend",
+    "sunday":    "weekend"
+  }
+}
+```
+
+<Tip>
+Template references are case-sensitive. Make sure the template name in the day field exactly matches the key in `day_templates`.
+</Tip>
+
+## Continued slots
+
+Use `"continued": true` to carry the previous hour's programming into the next slot — useful for movies that run multiple hours:
+
+```json
+"monday": {
+  "20": {"tags": "movie"},
+  "21": {"continued": true},
+  "22": {"continued": true}
+}
+```
+
+## Slot overrides
+
+Define named override sets under `slot_overrides` and apply them to individual slots with the `overrides` key:
+
+```json
+{
+  "slot_overrides": {
+    "prime_slots": {
+      "start_bump": "caps/primetime_start.mp4",
+      "end_bump": "caps/primetime_end.mp4",
+      "break_strategy": "end",
+      "schedule_increment": 60
+    }
+  },
+  "monday": {
+    "20": {"tags": "drama", "overrides": "prime_slots"},
+    "21": {"tags": "sitcom", "overrides": "prime_slots"}
+  }
+}
+```
+
+Overridable properties: `start_bump`, `end_bump`, `bump_dir`, `commercial_dir`, `break_strategy`, `sequence`, `sequence_start`, `sequence_end`, `schedule_increment`, `random_tags`, `video_scramble_fx`, `marathon`.
+
+## Sign-off event
+
+Use `"event": "signoff"` to trigger the station sign-off video at a specific hour:
+
+```json
+"monday": {
+  "3": {"event": "signoff"},
+  "7": {"tags": "morning"}
+}
+```
+
+The `sign_off_video` path must be configured in the station config for this to work.

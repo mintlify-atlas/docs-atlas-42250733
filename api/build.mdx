@@ -1,0 +1,290 @@
+---
+title: "Build API — Async Catalog and Schedule Rebuilds"
+description: "Trigger async catalog and schedule rebuilds in FieldStation42, then poll a task ID to track progress. Supports per-station or all-station operations."
+---
+
+The Build API lets you rebuild catalogs and schedules without blocking the server. Every trigger endpoint immediately returns a `task_id`; you then poll a corresponding status endpoint until the task reaches `"done"` or `"error"`. This async pattern keeps the API responsive during long-running rebuild jobs, which can take several minutes for large media libraries.
+
+All endpoints use the `/build` prefix.
+
+<Tip>
+Pass `"all"` as the `network_name` parameter to rebuild every station at once instead of targeting a single one.
+</Tip>
+
+---
+
+## Async workflow
+
+Every build operation follows the same two-step pattern:
+
+<Steps>
+  <Step title="Trigger the rebuild">
+    Send a `POST` request to the appropriate trigger endpoint. The server starts a background thread and immediately returns a UUID `task_id`.
+
+    ```bash
+    curl -X POST http://localhost:4242/build/catalog/ClassicTV
+    ```
+
+    ```json
+    {"task_id": "a3f2c1d4-7e8b-4a9f-b0c2-1d3e5f7a9b0c"}
+    ```
+  </Step>
+  <Step title="Poll for status">
+    Send `GET` requests to the status endpoint with the `task_id` until `status` is `"done"` or `"error"`. Inspect the `log` field for detailed progress.
+
+    ```bash
+    curl http://localhost:4242/build/catalog/status/a3f2c1d4-7e8b-4a9f-b0c2-1d3e5f7a9b0c
+    ```
+
+    ```json
+    {
+      "status": "done",
+      "log": "Starting catalog rebuild for ClassicTV\nRebuilt catalog for Classic TV\nCatalog rebuild complete.\nReloading data and state.\n"
+    }
+    ```
+  </Step>
+</Steps>
+
+**Status values**
+
+| Value | Meaning |
+|-------|---------|
+| `"starting"` | Task created, background thread not yet running |
+| `"running"` | Rebuild in progress |
+| `"done"` | Rebuild completed successfully |
+| `"error"` | Rebuild failed; see `log` for the traceback |
+
+<Warning>
+Task IDs are stored in memory. They are lost if the FieldStation42 server restarts. Always poll promptly after triggering a rebuild.
+</Warning>
+
+---
+
+## POST /build/catalog/{network_name}
+
+Triggers an asynchronous catalog rebuild for the named station, or for all stations when `network_name` is `"all"`. The rebuild also resets and regenerates the station's schedule as part of the process.
+
+<ParamField path="network_name" type="string" required>
+  Network name of the station to rebuild, or `"all"` to rebuild every station.
+</ParamField>
+
+```bash
+# Rebuild a single station
+curl -X POST http://localhost:4242/build/catalog/ClassicTV
+
+# Rebuild all stations
+curl -X POST http://localhost:4242/build/catalog/all
+```
+
+**Response**
+
+<ResponseField name="task_id" type="string">
+  UUID for this rebuild job. Use it to poll `GET /build/catalog/status/{task_id}`.
+</ResponseField>
+
+```json
+{"task_id": "a3f2c1d4-7e8b-4a9f-b0c2-1d3e5f7a9b0c"}
+```
+
+---
+
+## GET /build/catalog/status/{task_id}
+
+Returns the current status and log output for a catalog rebuild job.
+
+<ParamField path="task_id" type="string" required>
+  The UUID returned by `POST /build/catalog/{network_name}`.
+</ParamField>
+
+```bash
+curl http://localhost:4242/build/catalog/status/a3f2c1d4-7e8b-4a9f-b0c2-1d3e5f7a9b0c
+```
+
+**Response fields**
+
+<ResponseField name="status" type="string">
+  Current job state: `"starting"`, `"running"`, `"done"`, or `"error"`.
+</ResponseField>
+
+<ResponseField name="log" type="string">
+  Accumulated log output from the rebuild worker. For error states, includes the full Python traceback.
+</ResponseField>
+
+```json
+{
+  "status": "running",
+  "log": "Starting catalog rebuild for Classic TV\nDeleting schedule for Classic TV\n"
+}
+```
+
+If the `task_id` is not recognised (e.g. after a server restart):
+
+```json
+{"error": "Task ID not found."}
+```
+
+---
+
+## POST /build/schedule/add_time/{amount}/{network_name}
+
+Extends the schedule for the named station (or all stations) by the specified amount of time. This is useful when the schedule is about to run out — rather than resetting it, you can add more content forward from where it currently ends.
+
+<ParamField path="amount" type="string" required>
+  How much time to add to the schedule. Accepted values: `"day"`, `"week"`, `"month"`.
+</ParamField>
+
+<ParamField path="network_name" type="string" required>
+  Network name of the station to extend, or `"all"` to extend every station's schedule.
+</ParamField>
+
+```bash
+# Add one week to Classic TV's schedule
+curl -X POST http://localhost:4242/build/schedule/add_time/week/ClassicTV
+
+# Add one day to all station schedules
+curl -X POST http://localhost:4242/build/schedule/add_time/day/all
+```
+
+**Response**
+
+<ResponseField name="task_id" type="string">
+  UUID for this job. Use it to poll `GET /build/schedule/add_time/status/{task_id}`.
+</ResponseField>
+
+```json
+{"task_id": "b4e3d2c1-8f9a-4b0c-c1d3-2e4f6a8b0c1d"}
+```
+
+---
+
+## GET /build/schedule/add_time/status/{task_id}
+
+Returns the status and log for an add-time job.
+
+<ParamField path="task_id" type="string" required>
+  The UUID returned by `POST /build/schedule/add_time/{amount}/{network_name}`.
+</ParamField>
+
+```bash
+curl http://localhost:4242/build/schedule/add_time/status/b4e3d2c1-8f9a-4b0c-c1d3-2e4f6a8b0c1d
+```
+
+**Response fields**
+
+<ResponseField name="status" type="string">
+  `"starting"`, `"running"`, `"done"`, or `"error"`.
+</ResponseField>
+
+<ResponseField name="log" type="string">
+  Progress log from the background worker.
+</ResponseField>
+
+```json
+{
+  "status": "done",
+  "log": "Adding week to schedule for Classic TV\nAdd time to schedule complete.\nReloading data and state.\n"
+}
+```
+
+---
+
+## POST /build/schedule/reset/{network_name}
+
+Resets and fully rebuilds the schedule for the named station (or all stations). Unlike `add_time`, this discards the existing schedule and regenerates it from scratch.
+
+<ParamField path="network_name" type="string" required>
+  Network name of the station to reset, or `"all"` to reset every station's schedule.
+</ParamField>
+
+```bash
+# Reset Classic TV's schedule
+curl -X POST http://localhost:4242/build/schedule/reset/ClassicTV
+
+# Reset all schedules
+curl -X POST http://localhost:4242/build/schedule/reset/all
+```
+
+**Response**
+
+<ResponseField name="task_id" type="string">
+  UUID for this job. Use it to poll `GET /build/schedule/reset/status/{task_id}`.
+</ResponseField>
+
+```json
+{"task_id": "c5f4e3d2-9a0b-4c1d-d2e4-3f5a7b9c1d2e"}
+```
+
+---
+
+## GET /build/schedule/reset/status/{task_id}
+
+Returns the status and log for a schedule reset job.
+
+<ParamField path="task_id" type="string" required>
+  The UUID returned by `POST /build/schedule/reset/{network_name}`.
+</ParamField>
+
+```bash
+curl http://localhost:4242/build/schedule/reset/status/c5f4e3d2-9a0b-4c1d-d2e4-3f5a7b9c1d2e
+```
+
+**Response fields**
+
+<ResponseField name="status" type="string">
+  `"starting"`, `"running"`, `"done"`, or `"error"`.
+</ResponseField>
+
+<ResponseField name="log" type="string">
+  Progress log from the schedule rebuild worker.
+</ResponseField>
+
+```json
+{
+  "status": "done",
+  "log": "Starting schedule rebuild for Classic TV\nRebuilt schedule for Classic TV\nSchedule rebuild complete.\nReloading data and state.\n"
+}
+```
+
+---
+
+## Complete async workflow example
+
+The following shell script demonstrates the full trigger-then-poll pattern for a catalog rebuild:
+
+```bash
+#!/usr/bin/env bash
+# Rebuild the catalog for Classic TV and wait for completion
+
+BASE="http://localhost:4242"
+NETWORK="ClassicTV"
+
+# Step 1: Trigger the rebuild
+RESPONSE=$(curl -s -X POST "$BASE/build/catalog/$NETWORK")
+TASK_ID=$(echo "$RESPONSE" | grep -o '"task_id":"[^"]*"' | cut -d'"' -f4)
+
+if [ -z "$TASK_ID" ]; then
+  echo "Failed to get task_id. Response: $RESPONSE"
+  exit 1
+fi
+
+echo "Rebuild started. Task ID: $TASK_ID"
+
+# Step 2: Poll until done or error
+while true; do
+  STATUS_RESPONSE=$(curl -s "$BASE/build/catalog/status/$TASK_ID")
+  STATUS=$(echo "$STATUS_RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+
+  echo "Status: $STATUS"
+
+  if [ "$STATUS" = "done" ]; then
+    echo "Rebuild complete."
+    break
+  elif [ "$STATUS" = "error" ]; then
+    echo "Rebuild failed. Check logs:"
+    echo "$STATUS_RESPONSE"
+    exit 1
+  fi
+
+  sleep 3
+done
+```

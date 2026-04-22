@@ -1,0 +1,247 @@
+---
+title: "FieldStation42 Channel Network Types Explained"
+description: "Compare all five FieldStation42 network types — standard, guide, loop, streaming, and web — and learn which properties each one requires."
+---
+
+The `network_type` property is the single most important decision you make when configuring a channel. It determines how FieldStation42 operates the station: whether it reads a weekly schedule, loops a directory, plays external streams, renders a web page, or displays the interactive program guide. Channels that omit `network_type` default to `"standard"`.
+
+<Tabs>
+  <Tab title="standard">
+    The `standard` type is a traditional broadcast station with hour-by-hour scheduled programming. It reads a content catalog, builds a schedule across all seven days of the week, and inserts commercial breaks according to the configured break strategy. This is the most fully featured network type.
+
+    **Required for standard networks:**
+    - All 7 day keys (`monday` through `sunday`) must be present
+    - `content_dir` pointing to your video catalog
+
+    **Properties used by standard networks:**
+
+    | Property | Description |
+    |---|---|
+    | `content_dir` | Root directory of the content catalog |
+    | `bump_dir` | Directory of bump/interstitial clips |
+    | `commercial_dir` | Directory of commercial clips |
+    | `schedule_increment` | Length of each time slot in minutes |
+    | `break_strategy` | When breaks occur: `standard`, `end`, or `center` |
+    | `commercial_free` | Set `true` to disable all commercials |
+    | `break_duration` | Commercial break length in seconds |
+    | `clip_shows` | Tags eligible for clip show treatment |
+    | `day_templates` | Reusable named schedule objects |
+    | `slot_overrides` | Named override sets for time slots |
+    | `tag_overrides` | Overrides applied by content tag path |
+    | `fallback_tag` | Fallback content tag when no match is found |
+
+    ```json confs/examples/traditional_network.json
+    {
+      "station_conf": {
+        "network_name": "NBC",
+        "channel_number": 4,
+        "network_type": "standard",
+        "schedule_increment": 30,
+        "break_strategy": "standard",
+        "commercial_free": false,
+        "break_duration": 120,
+        "content_dir": "catalog/nbc_catalog",
+        "commercial_dir": "commercial",
+        "bump_dir": "bump",
+        "clip_shows": ["real_people", "snl"],
+        "sign_off_video": "runtime/signoff.mp4",
+        "off_air_video": "runtime/off_air_pattern.mp4",
+        "standby_image": "runtime/standby.png",
+        "be_right_back_media": "runtime/brb.png",
+        "monday": {
+          "0": {"tags": "late"},
+          "1": {"tags": "late-late"},
+          "2": {"tags": "classic"},
+          "3": {"event": "signoff"},
+          "7": {"tags": "morning"},
+          "9": {"tags": "cartoon"},
+          "12": {"tags": "daytime"},
+          "18": {"tags": "news"},
+          "20": {"tags": "sitcom"},
+          "21": {"tags": "prime"},
+          "23": {"tags": "news"}
+        },
+        "tuesday": { "...": "same structure as monday" },
+        "saturday": {
+          "0": {"tags": "snl"},
+          "7": {"tags": "cartoon"},
+          "13": {"tags": "wrestling"},
+          "20": {"tags": "sitcom"},
+          "23": {"tags": "news"}
+        },
+        "sunday": {
+          "10": {"tags": "sunday"},
+          "13": {"tags": "western"},
+          "20": {"tags": "sitcom"},
+          "21": {"tags": "real_people"}
+        }
+      }
+    }
+    ```
+
+    <Tip>
+      Use `day_templates` to avoid repeating the same schedule for multiple days. See the [scheduling guide](/channels/scheduling) for details.
+    </Tip>
+  </Tab>
+
+  <Tab title="guide">
+    The `guide` type renders the interactive Electronic Program Guide (EPG). Conventionally assigned to channel 0 or another low number, it displays scrolling messages, rotating images, and optional background audio. It does not use a content schedule or catalog.
+
+    **Properties used by guide networks:**
+
+    | Property | Description |
+    |---|---|
+    | `messages` | Array of text strings to display |
+    | `images` | Array of image paths to rotate through |
+    | `play_sound` | Whether to play background audio |
+    | `sound_to_play` | Path to an audio file, a directory of `.mp3` files, or an array of files |
+    | `scroll_speed` | Speed of text scrolling (e.g., `1.0`) |
+    | `width` | Window width in pixels |
+    | `height` | Window height in pixels |
+    | `fullscreen` | Display in fullscreen mode |
+
+    <Note>
+      Guide networks do not require a schedule or a content catalog.
+    </Note>
+
+    ```json confs/examples/guide.json
+    {
+      "station_conf": {
+        "network_name": "Guide",
+        "network_type": "guide",
+        "channel_number": 3,
+        "content_dir": "catalog/indie42_catalog/commercial/December",
+        "messages": [
+          "FS42\nIt's Up To You!",
+          "FieldStation42\nGroovy, right?",
+          "FS42\nRetro cable goodness.",
+          "FieldStation42\nTimeless TV.",
+          "FieldStation42\nMountain fresh."
+        ],
+        "images": [
+          "runtime/logo_images/gold42.png",
+          "runtime/logo_images/groove42.png",
+          "runtime/logo_images/city42.png",
+          "runtime/logo_images/timeless42.png",
+          "runtime/logo_images/mountains42.png"
+        ],
+        "play_sound": true,
+        "sound_to_play": "runtime/guide/background.mp3",
+        "fullscreen": false,
+        "width": 720,
+        "height": 480,
+        "scroll_speed": 1.0
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="loop">
+    The `loop` type continuously plays all video files found in `content_dir`, cycling through them indefinitely. There is no schedule, no catalog, and no commercial breaks. It is the simplest channel type to configure.
+
+    **Properties used by loop networks:**
+
+    | Property | Description |
+    |---|---|
+    | `content_dir` | Directory of video files to loop |
+    | `network_long_name` | Optional display name |
+
+    <Note>
+      Loop networks do not require a schedule, day definitions, or a catalog.
+    </Note>
+
+    ```json confs/examples/loop_channel.json
+    {
+      "station_conf": {
+        "network_name": "Loop",
+        "network_type": "loop",
+        "channel_number": 2,
+        "content_dir": "catalog/loop",
+        "network_long_name": "My Looping Channel"
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="streaming">
+    The `streaming` type plays one or more external streams in sequence, rotating through the `streams` array. Each stream entry specifies a URL, a duration in minutes, and a title. Supported formats include HLS/m3u8 and direct video URLs.
+
+    **Properties used by streaming networks:**
+
+    | Property | Description |
+    |---|---|
+    | `streams` | Array of stream objects |
+
+    Each stream object requires:
+
+    | Field | Type | Description |
+    |---|---|---|
+    | `url` | string | Full URL to the stream or video |
+    | `duration` | integer | How many minutes to play this stream |
+    | `title` | string | Display title for the stream |
+
+    <Note>
+      Streaming networks do not require a schedule or a content catalog.
+    </Note>
+
+    ```json confs/examples/streamy.json
+    {
+      "station_conf": {
+        "network_name": "Streamy",
+        "network_type": "streaming",
+        "channel_number": 1,
+        "network_long_name": "My Streamy Channel",
+        "streams": [
+          {
+            "url": "https://content.jwplatform.com/manifests/vM7nH0Kl.m3u8",
+            "duration": 30,
+            "title": "Tears of Steel"
+          },
+          {
+            "url": "https://dn720306.ca.archive.org/0/items/publici_cast_cherwell_644527/publici_cast_cherwell_644527.mp4",
+            "duration": 30,
+            "title": "City Council"
+          }
+        ]
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="web">
+    The `web` type embeds a web page as the channel's output. It is useful for diagnostic pages, dashboards, or any web content you want to display on a channel. An optional `refresh_interval` reloads the page automatically.
+
+    **Properties used by web networks:**
+
+    | Property | Description |
+    |---|---|
+    | `web_url` | URL to display |
+    | `refresh_interval` | Seconds between page reloads. Omit or set to `0` to disable. |
+
+    <Note>
+      Web networks do not require a schedule or a content catalog.
+    </Note>
+
+    ```json
+    {
+      "station_conf": {
+        "network_name": "Diagnostics",
+        "channel_number": 99,
+        "network_type": "web",
+        "web_url": "http://localhost:4242/diagnostics.html",
+        "refresh_interval": 60
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Network type capabilities at a glance
+
+| Type | Schedule | Catalog | Streams | Guide UI |
+|---|---|---|---|---|
+| `standard` | Required | Required | — | — |
+| `guide` | — | — | — | Yes |
+| `loop` | — | — | — | — |
+| `streaming` | — | — | Required | — |
+| `web` | — | — | — | — |

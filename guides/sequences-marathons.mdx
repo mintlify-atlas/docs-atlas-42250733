@@ -1,0 +1,168 @@
+---
+title: 'Ordered Playback with Sequences and Marathons'
+description: 'Learn how to configure sequences for in-order episode playback and marathons for probabilistic multi-episode blocks in FieldStation42 schedules.'
+---
+
+By default, FieldStation42 picks episodes randomly from a tag folder each time a time slot is filled. Sequences and marathons give you control over that behavior — sequences play episodes in a defined order across sessions, while marathons trigger consecutive episode blocks based on a configurable probability at schedule-build time.
+
+## Sequences
+
+### What sequences are
+
+A sequence is a named ordered playlist built from the episodes in a tag folder. FieldStation42 tracks the current position in each sequence so that every time the scheduler fills a slot configured with that sequence, it picks up where it left off rather than choosing randomly.
+
+Sequences are useful for sitcoms or dramas where you want episodes to air in order — like a traditional TV station working through a show's run from the beginning.
+
+### Configuring a sequence in a time slot
+
+Add `sequence`, `sequence_start`, and `sequence_end` to any time slot object alongside the `tags` field:
+
+```json
+{
+  "tags": "golden_girls",
+  "sequence": "gg-season1",
+  "sequence_start": 0.0,
+  "sequence_end": 0.5
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sequence` | string | A unique identifier for this sequence. Pick any name — it is used to track position. |
+| `sequence_start` | number | Starting position as a fraction of the catalog (0.0 = beginning, 1.0 = end). |
+| `sequence_end` | number | Ending position as a fraction of the catalog. The sequence stops selecting episodes beyond this point. |
+
+The `sequence_start` and `sequence_end` values are fractions from `0.0` to `1.0` representing position within the sorted episode list for that tag. Setting `sequence_start: 0.0` and `sequence_end: 0.5` plays the first half of the catalog in order; `sequence_start: 0.5` and `sequence_end: 1.0` plays the second half.
+
+<Note>
+  You can use the same `sequence` identifier across multiple channels or time slots to share a single tracked position — or use different identifiers to maintain independent positions for the same tag.
+</Note>
+
+### Scanning for new sequences
+
+When you add a `sequence` key to a config for the first time, run the sequence scan command so FieldStation42 registers the new sequence identifier:
+
+```bash
+python3 station_42.py -a MyChannel
+```
+
+This scans all station configs for sequence definitions and adds any new ones to the tracking database. It does not reset existing sequence positions.
+
+### Resetting sequences
+
+To restart all sequences for a station from the beginning (position 0.0), run:
+
+```bash
+python3 station_42.py -q MyChannel
+```
+
+<Warning>
+  Resetting sequences takes effect on the **next schedule build**, not immediately. Existing schedule entries that have already been generated are not affected.
+</Warning>
+
+To reset sequences for all stations at once, omit the station name:
+
+```bash
+python3 station_42.py -q
+```
+
+### Example: in-order sitcom block
+
+Here is a Monday prime-time block that plays episodes of a sitcom in order through the first half of the catalog, then starts over with a different sequence identifier for the second half:
+
+```json
+"monday": {
+  "20": {
+    "tags": "sitcoms/golden_girls",
+    "sequence": "gg-part1",
+    "sequence_start": 0.0,
+    "sequence_end": 0.5
+  },
+  "21": {
+    "tags": "sitcoms/golden_girls",
+    "sequence": "gg-part2",
+    "sequence_start": 0.5,
+    "sequence_end": 1.0
+  }
+}
+```
+
+---
+
+## Marathons
+
+### What marathons are
+
+A marathon is a probabilistic burst of consecutive episodes from the same tag. When the schedule builder encounters a slot configured with a marathon, it rolls the dice: if the random roll falls within the configured `chance`, it fills several consecutive schedule slots with back-to-back episodes rather than just one.
+
+Marathons trigger at **schedule-build time**, not at runtime. The consecutive episodes are written into the generated schedule as normal time slots — the player has no special awareness that a marathon is happening.
+
+### Configuring a marathon
+
+Add a `marathon` object to any time slot:
+
+```json
+{
+  "tags": "real_people",
+  "marathon": {
+    "chance": 0.5,
+    "count": 6
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `chance` | number | Probability (0.0 to 1.0) that the marathon fires when the schedule is built. `0.5` means 50%. |
+| `count` | integer | Number of consecutive episodes to schedule when the marathon triggers. |
+
+With the example above, each time you add a week to the schedule, there is a 50% chance that Sunday night becomes a 6-episode `real_people` marathon. When it does not trigger, the slot is scheduled as a single episode as normal.
+
+<Tip>
+  Set `chance` to `1.0` to make the marathon trigger every time the schedule is built, effectively turning the slot into a permanent multi-episode block.
+</Tip>
+
+### Combining sequences with marathons
+
+You can add both `sequence` and `marathon` to the same slot. When the marathon triggers, the consecutive episodes are drawn in sequence order rather than randomly:
+
+```json
+{
+  "tags": "real_people",
+  "sequence": "real-people-run",
+  "sequence_start": 0.0,
+  "sequence_end": 1.0,
+  "marathon": {
+    "chance": 0.5,
+    "count": 6
+  }
+}
+```
+
+This gives you an ordered marathon — when it fires, the next 6 episodes in sequence order play back to back.
+
+---
+
+## Slot overrides and sequences
+
+If you want to apply a consistent set of configuration properties (custom bumps, break strategy, schedule increment) to multiple sequence slots, define a named override set under `slot_overrides` and reference it with the `overrides` key:
+
+```json
+"slot_overrides": {
+  "ordered_block": {
+    "break_strategy": "end",
+    "schedule_increment": 30
+  }
+},
+"monday": {
+  "20": {
+    "tags": "golden_girls",
+    "sequence": "gg-season1",
+    "sequence_start": 0.0,
+    "sequence_end": 1.0,
+    "overrides": "ordered_block"
+  }
+}
+```
+
+The `overrides` key is resolved during config preprocessing — the properties from the named override set are inlined into the slot and the `overrides` key is removed before the schedule builder runs.

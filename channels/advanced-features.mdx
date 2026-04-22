@@ -1,0 +1,184 @@
+---
+title: "Advanced Channel Features in FieldStation42"
+description: "Configure video scramble effects, seasonal active rules, tag overrides, autobump, clip shows, on-screen logos, and display settings for your channels."
+---
+
+Beyond basic scheduling, FieldStation42 channels support a range of advanced features: scramble effects that simulate cable TV signal degradation, seasonal configurations that load only on certain dates, automatic tag-based overrides, auto-generated bump videos, and fine-grained display control.
+
+## Video scramble effects
+
+Apply a preset video effect to simulate a scrambled cable channel. Set `video_scramble_fx` in the station config or in an individual time slot.
+
+| Effect | Description |
+|--------|-------------|
+| `horizontal_line` | Classic cable horizontal line scrambling |
+| `diagonal_lines` | Deep scrambling with diagonal patterns |
+| `static_overlay` | Static distortion overlay with rapid effects |
+| `pixel_block` | Heavy pixelation with random blocks |
+| `color_inversion` | Horizontal bars with inverted colors |
+| `severe_noise` | Intense noise effect |
+| `wavy` | Wavy distortion pattern |
+| `random_block` | Random block replacement distortion |
+| `chunky_scramble` | Complex realistic scramble effect |
+| `spicy` | Spicy scrambling effect |
+
+```json
+{
+  "station_conf": {
+    "network_name": "Scrambled Premium",
+    "channel_number": 99,
+    "network_type": "standard",
+    "video_scramble_fx": "chunky_scramble"
+  }
+}
+```
+
+You can also set `video_scramble_fx` per time slot, or set it to `false` in a slot to disable a station-level effect for that slot. For a custom FFMPEG filter, use `station_fx` (ignored when `video_scramble_fx` is set).
+
+## Seasonal channels with active rules
+
+`active_rules` lets you conditionally load a station configuration based on the current date. If the date is outside the range, the config file is skipped on startup — useful for holiday channels.
+
+```json
+{
+  "station_conf": {
+    "network_name": "Holiday Channel",
+    "channel_number": 25,
+    "active_rules": {
+      "date_range": "December 1 - January 2"
+    }
+  }
+}
+```
+
+The `date_range` format is `"Month Day - Month Day"` using full capitalized month names. Ranges that cross year boundaries (like December through January) work correctly.
+
+<Warning>
+If the `date_range` string does not parse correctly, a warning is logged but the configuration loads anyway. Check your logs on startup if seasonal behavior isn't working as expected.
+</Warning>
+
+## Fallback tag
+
+When a scheduled slot has no matching content in the catalog, FieldStation42 can fall back to a generic content folder instead of erroring out:
+
+```json
+{
+  "station_conf": {
+    "network_name": "Classic TV",
+    "channel_number": 5,
+    "fallback_tag": "generic-content"
+  }
+}
+```
+
+If no `fallback_tag` is set and content is not found, schedule building will stop with an error.
+
+## Tag overrides
+
+Tag overrides are automatically applied when the scheduler selects content from a more specific tag path than what was scheduled. This lets you customize bumps, commercials, and break behavior per show without changing your schedule.
+
+```json
+{
+  "tag_overrides": {
+    "sitcoms/friends": {
+      "start_bump": "extra/friends_start.mp4",
+      "end_bump": "extra/friends_end.mp4",
+      "bump_dir": "extra/friends_bumps",
+      "commercial_dir": "extra/friends_commercials",
+      "break_strategy": "end"
+    },
+    "movies/action": {
+      "break_strategy": "center",
+      "schedule_increment": 120
+    }
+  },
+  "monday": {
+    "20": {"tags": "sitcoms"}
+  }
+}
+```
+
+When a slot schedules `sitcoms` and the catalog selects an episode from `catalog/content/sitcoms/friends/`, the `sitcoms/friends` tag override is applied automatically with Friends-specific bumps and commercials.
+
+Overridable properties in tag overrides: `start_bump`, `end_bump`, `bump_dir`, `commercial_dir`, `break_strategy`, `sequence`, `sequence_start`, `sequence_end`, `schedule_increment`, `random_tags`, `video_scramble_fx`, `marathon`.
+
+## Autobump
+
+Autobump generates bump videos with station branding metadata automatically, without requiring pre-made bump files:
+
+```json
+{
+  "autobump": {
+    "title": "NBC TV",
+    "subtitle": "Classic Television",
+    "variation": "retro",
+    "detail1": "Line 1 of details",
+    "detail2": "Line 2 of details",
+    "detail3": "Line 3 of details",
+    "bg_music": "logo1.mp3",
+    "strategy": "both"
+  }
+}
+```
+
+| Property | Description |
+|----------|-------------|
+| `title` | Station name displayed on the bump |
+| `subtitle` | Secondary station description |
+| `variation` | Visual style variant |
+| `detail1` / `detail2` / `detail3` | Additional text lines |
+| `bg_music` | Background audio file path |
+| `strategy` | When to show: `"both"`, `"start"`, `"end"` |
+
+## Clip shows
+
+Clip shows are programs assembled from short clips rather than full episodes. List them under `clip_shows` as either a tag string (defaults to 60 minutes) or an object with an explicit duration:
+
+```json
+{
+  "clip_shows": [
+    "quickstop",
+    {"tags": "variety", "duration": 30}
+  ]
+}
+```
+
+The system automatically adjusts durations based on `break_strategy` to account for commercial time.
+
+## On-screen display (logo)
+
+Display a station logo overlay on screen during playback:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `logo_dir` | string | Directory containing logo image files |
+| `show_logo` | boolean | Whether to display the logo |
+| `default_logo` | string | Default logo filename (e.g. `"StationLogo.png"`) |
+| `logo_permanent` | boolean | `true` keeps logo on screen; `false` allows it to appear/disappear |
+| `multi_logo` | string | Multi-logo configuration identifier |
+
+```json
+{
+  "logo_dir": "runtime/logos",
+  "show_logo": true,
+  "default_logo": "NBC.png",
+  "logo_permanent": false
+}
+```
+
+## Display properties
+
+Control how video is presented on screen:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `video_keepaspect` | boolean | Maintain video aspect ratio (default: `true`) |
+| `panscan` | number | MPV panscan value (e.g. `1.0`) to fill screen by cropping edges |
+| `fullscreen` | boolean | Display in fullscreen mode |
+| `width` | integer | Window width in pixels (guide channels only) |
+| `height` | integer | Window height in pixels (guide channels only) |
+| `window_decorations` | boolean | Show window decorations (guide channels only) |
+
+<Tip>
+Set `panscan: 1.0` to fill a widescreen display with 4:3 content — it crops the top and bottom edges rather than letterboxing.
+</Tip>

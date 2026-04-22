@@ -1,0 +1,190 @@
+---
+title: "Schedules API — Query Station Schedule Blocks"
+description: "Retrieve generated schedule blocks for any FieldStation42 station, with optional date-range filtering or full-text search across one or all stations."
+---
+
+The Schedules API provides read-only access to the schedule blocks that FieldStation42 generates for each station. A schedule block describes a discrete programming window — what content plays, and when. You can retrieve blocks for a single station with an optional date-range filter, search within a station's schedule by keyword, or search across all stations simultaneously.
+
+All endpoints use the `/schedules` prefix.
+
+<Note>
+Schedule blocks are only present for stations that have been built (i.e. stations where `_has_schedule` is `true`). Use the [Build API](/api/build) to generate or refresh a schedule.
+</Note>
+
+---
+
+## GET /schedules/{network_name}
+
+Returns schedule blocks for the named station. Without the optional `start` and `end` query parameters, all blocks are returned. When both parameters are supplied, only blocks that fall within that window are returned.
+
+<ParamField path="network_name" type="string" required>
+  The network name of the station whose schedule you want to retrieve.
+</ParamField>
+
+<ParamField path="start" type="string">
+  Start of the date-range filter in ISO 8601 format (`YYYY-MM-DDTHH:MM:SS`). Must be paired with `end`.
+</ParamField>
+
+<ParamField path="end" type="string">
+  End of the date-range filter in ISO 8601 format (`YYYY-MM-DDTHH:MM:SS`). Must be paired with `start`.
+</ParamField>
+
+```bash
+# All schedule blocks for Classic TV
+curl http://localhost:4242/schedules/ClassicTV
+
+# Blocks within a specific date range
+curl "http://localhost:4242/schedules/ClassicTV?start=2026-04-22T20:00:00&end=2026-04-22T23:59:59"
+```
+
+<Warning>
+If you supply `start` without `end` (or vice versa), the date filter is ignored and all blocks are returned. Both parameters must be present to activate filtering.
+</Warning>
+
+If either date string cannot be parsed as ISO 8601, the API returns an error object instead of raising an HTTP exception:
+
+```json
+{
+  "error": "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS) for start and end."
+}
+```
+
+**Response fields**
+
+<ResponseField name="network_name" type="string">
+  The station whose schedule was queried.
+</ResponseField>
+
+<ResponseField name="schedule_blocks" type="array">
+  List of schedule block objects. Each block represents a programmed content window for this station.
+</ResponseField>
+
+```json
+{
+  "network_name": "Classic TV",
+  "schedule_blocks": [
+    {
+      "start": "2026-04-22T20:00:00",
+      "end": "2026-04-22T20:30:00",
+      "title": "The Honeymooners - S01E03",
+      "path": "media/classic/honeymooners_s01e03.mp4"
+    },
+    {
+      "start": "2026-04-22T20:30:00",
+      "end": "2026-04-22T21:00:00",
+      "title": "The Honeymooners - S01E04",
+      "path": "media/classic/honeymooners_s01e04.mp4"
+    }
+  ]
+}
+```
+
+---
+
+## GET /schedules/search/{network_name}?query=term
+
+Searches the schedule blocks for a single station. If `query` is omitted, all blocks for the station are returned.
+
+<ParamField path="network_name" type="string" required>
+  The network name of the station to search.
+</ParamField>
+
+<ParamField path="query" type="string">
+  Search term to filter schedule blocks. Omit to return all blocks.
+</ParamField>
+
+```bash
+# Search for "honeymooners" in Classic TV's schedule
+curl "http://localhost:4242/schedules/search/ClassicTV?query=honeymooners"
+
+# Return all schedule blocks (no query)
+curl http://localhost:4242/schedules/search/ClassicTV
+```
+
+**Response fields**
+
+<ResponseField name="network_name" type="string">
+  The station that was searched.
+</ResponseField>
+
+<ResponseField name="query" type="string">
+  The search term that was used. `null` if no query was provided.
+</ResponseField>
+
+<ResponseField name="schedule_blocks" type="array">
+  Matching schedule block objects.
+</ResponseField>
+
+```json
+{
+  "network_name": "Classic TV",
+  "query": "honeymooners",
+  "schedule_blocks": [
+    {
+      "start": "2026-04-22T20:00:00",
+      "end": "2026-04-22T20:30:00",
+      "title": "The Honeymooners - S01E03",
+      "path": "media/classic/honeymooners_s01e03.mp4"
+    }
+  ]
+}
+```
+
+---
+
+## GET /schedules/search_all?query=term
+
+Searches schedule blocks across all stations that have a schedule. Stations without a schedule are skipped. If `query` is omitted, all blocks from every schedule-enabled station are returned.
+
+<ParamField path="query" type="string">
+  Search term to filter schedule blocks across all stations. Omit to return all blocks from every station with a schedule.
+</ParamField>
+
+```bash
+# Search all station schedules for "sitcom"
+curl "http://localhost:4242/schedules/search_all?query=sitcom"
+
+# Return every schedule block from all stations
+curl http://localhost:4242/schedules/search_all
+```
+
+**Response fields**
+
+<ResponseField name="query" type="string">
+  The search term used. `null` if no query was provided.
+</ResponseField>
+
+<ResponseField name="results" type="array">
+  One entry per station that had matching schedule blocks.
+
+  <Expandable title="properties">
+    <ResponseField name="network_name" type="string">
+      The station name.
+    </ResponseField>
+    <ResponseField name="schedule_blocks" type="array">
+      Matching schedule blocks for this station.
+    </ResponseField>
+    <ResponseField name="error" type="string">
+      Present only if an error occurred reading that station's schedule.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "query": "sitcom",
+  "results": [
+    {
+      "network_name": "Classic TV",
+      "schedule_blocks": [
+        {
+          "start": "2026-04-22T20:00:00",
+          "end": "2026-04-22T20:30:00",
+          "title": "The Honeymooners - S01E03",
+          "path": "media/classic/honeymooners_s01e03.mp4"
+        }
+      ]
+    }
+  ]
+}
+```

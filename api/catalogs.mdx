@@ -1,0 +1,266 @@
+---
+title: "Catalogs API — Browse and Search Content"
+description: "Read and search the content catalogs that FieldStation42 builds from your media library, scoped to a single station or across all stations at once."
+---
+
+The Catalogs API provides read-only access to the content catalogs that FieldStation42 assembles from your media files. A catalog holds the indexed list of playable content for a station. You can retrieve entries for one station, search within a station's catalog, or search across all station catalogs simultaneously. The Summary endpoints are also documented here, as they aggregate catalog counts alongside schedule state.
+
+All catalog endpoints use the `/catalogs` prefix.
+
+<Info>
+Catalog entries are only available for stations that have a catalog (i.e. stations with `_has_catalog: true` in their configuration). Stations of type `"web"` or `"guide"` typically do not have catalogs.
+</Info>
+
+---
+
+## GET /catalogs/{network_name}
+
+Returns all catalog entries for the named station.
+
+<ParamField path="network_name" type="string" required>
+  The network name of the station whose catalog you want to retrieve.
+</ParamField>
+
+```bash
+curl http://localhost:4242/catalogs/ClassicTV
+```
+
+**Response fields**
+
+<ResponseField name="network_name" type="string">
+  The station whose catalog entries are returned.
+</ResponseField>
+
+<ResponseField name="catalog_entries" type="array">
+  List of content entries in the station's catalog. Each entry represents a piece of playable media.
+</ResponseField>
+
+```json
+{
+  "network_name": "Classic TV",
+  "catalog_entries": [
+    {
+      "title": "The Honeymooners - S01E03",
+      "path": "media/classic/honeymooners_s01e03.mp4",
+      "tags": ["sitcom", "classic"]
+    }
+  ]
+}
+```
+
+---
+
+## GET /catalogs/search/{network_name}?query=term
+
+Searches a single station's catalog for entries matching the query string. If `query` is omitted, all catalog entries for the station are returned.
+
+<ParamField path="network_name" type="string" required>
+  The network name of the station to search.
+</ParamField>
+
+<ParamField path="query" type="string">
+  Search term to filter catalog entries. Omit to return all entries.
+</ParamField>
+
+```bash
+# Search for "honeymooners" in Classic TV's catalog
+curl "http://localhost:4242/catalogs/search/ClassicTV?query=honeymooners"
+
+# Return all entries (no query)
+curl http://localhost:4242/catalogs/search/ClassicTV
+```
+
+**Response fields**
+
+<ResponseField name="network_name" type="string">
+  The station that was searched.
+</ResponseField>
+
+<ResponseField name="query" type="string">
+  The search term that was used. `null` if no query was provided.
+</ResponseField>
+
+<ResponseField name="catalog_entries" type="array">
+  List of matching catalog entries.
+</ResponseField>
+
+```json
+{
+  "network_name": "Classic TV",
+  "query": "honeymooners",
+  "catalog_entries": [
+    {
+      "title": "The Honeymooners - S01E03",
+      "path": "media/classic/honeymooners_s01e03.mp4",
+      "tags": ["sitcom", "classic"]
+    }
+  ]
+}
+```
+
+---
+
+## GET /catalogs/search_all?query=term
+
+Searches across all station catalogs at once. Stations without catalogs are skipped. If `query` is omitted, all entries from all catalog-enabled stations are returned.
+
+<ParamField path="query" type="string">
+  Search term to filter entries. Omit to return all entries from every catalog-enabled station.
+</ParamField>
+
+```bash
+# Search for "sitcom" across all stations
+curl "http://localhost:4242/catalogs/search_all?query=sitcom"
+
+# Retrieve all catalog entries from all stations
+curl http://localhost:4242/catalogs/search_all
+```
+
+**Response fields**
+
+<ResponseField name="query" type="string">
+  The search term used. `null` if no query was provided.
+</ResponseField>
+
+<ResponseField name="results" type="array">
+  One entry per station that had matching catalog entries.
+
+  <Expandable title="properties">
+    <ResponseField name="network_name" type="string">
+      The station name.
+    </ResponseField>
+    <ResponseField name="catalog_entries" type="array">
+      Matching catalog entries for this station.
+    </ResponseField>
+    <ResponseField name="error" type="string">
+      Present only if an error occurred reading that station's catalog.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "query": "sitcom",
+  "results": [
+    {
+      "network_name": "Classic TV",
+      "catalog_entries": [
+        {
+          "title": "The Honeymooners - S01E03",
+          "path": "media/classic/honeymooners_s01e03.mp4",
+          "tags": ["sitcom"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## Summary endpoints
+
+The Summary API (`/summary` prefix) provides aggregated overviews that combine catalog counts with schedule state. These endpoints are useful for dashboards and health checks.
+
+### GET /summary/
+
+Returns a full summary for every station: catalog entry counts, schedule metadata, visibility, and channel number.
+
+```bash
+curl http://localhost:4242/summary/
+```
+
+**Response fields**
+
+<ResponseField name="summary_data" type="array">
+  One summary object per station.
+
+  <Expandable title="properties">
+    <ResponseField name="network_name" type="string">Station display name.</ResponseField>
+    <ResponseField name="channel_number" type="integer">Tuner channel number.</ResponseField>
+    <ResponseField name="_has_schedule" type="boolean">Whether this station has a generated schedule.</ResponseField>
+    <ResponseField name="hidden" type="boolean">Whether the station is hidden from the guide.</ResponseField>
+    <ResponseField name="catalog_summary" type="object">Summary data from the station's catalog.</ResponseField>
+    <ResponseField name="schedule_summary" type="object">
+      Schedule summary including `network_name`, `start`, and `end` timestamps. `start` and `end` are `0` for stations without a schedule.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "summary_data": [
+    {
+      "network_name": "Classic TV",
+      "channel_number": 5,
+      "_has_schedule": true,
+      "hidden": false,
+      "catalog_summary": {"entry_count": 142},
+      "schedule_summary": {
+        "network_name": "Classic TV",
+        "start": 1713744000,
+        "end": 1714348800
+      }
+    }
+  ]
+}
+```
+
+---
+
+### GET /summary/stations
+
+Returns a flat list of all station network names.
+
+```bash
+curl http://localhost:4242/summary/stations
+```
+
+**Response**
+
+```json
+{
+  "network_names": ["Guide", "Classic TV", "Music Videos"]
+}
+```
+
+---
+
+### GET /summary/schedules
+
+Returns schedule summaries for all stations.
+
+```bash
+curl http://localhost:4242/summary/schedules
+```
+
+**Response**
+
+```json
+{
+  "schedule_summaries": [
+    {"network_name": "Classic TV", "start": 1713744000, "end": 1714348800}
+  ]
+}
+```
+
+---
+
+### GET /summary/catalogs
+
+Returns the entry count for each station's catalog.
+
+```bash
+curl http://localhost:4242/summary/catalogs
+```
+
+**Response**
+
+```json
+{
+  "catalog_summaries": [
+    {"network_name": "Classic TV", "entry_count": 142},
+    {"network_name": "Music Videos", "entry_count": 87}
+  ]
+}
+```

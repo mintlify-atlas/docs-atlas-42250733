@@ -1,0 +1,243 @@
+---
+title: "Global Configuration Reference for FieldStation42"
+description: "Complete reference for confs/main_config.json — the optional global settings file controlling the web server, sockets, day parts, and title patterns."
+---
+
+The `confs/main_config.json` file controls global settings that apply across all stations in FieldStation42. The file is entirely optional — if it doesn't exist, the system starts with built-in defaults. Any key you add overrides only that specific default; everything else remains unchanged.
+
+## Configuration options
+
+<ParamField body="server_host" type="string" default="0.0.0.0">
+  Host address the web server binds to. Use `"0.0.0.0"` to accept connections from any device on your network, or `"127.0.0.1"` to restrict access to localhost only.
+</ParamField>
+
+<ParamField body="server_port" type="integer" default="4242">
+  Port the web server listens on. Open `http://localhost:4242` in a browser to reach the web console.
+</ParamField>
+
+<ParamField body="channel_socket" type="string" default="runtime/channel.socket">
+  Path to the Unix domain socket used for channel control commands. Relative paths are resolved from the FieldStation42 root directory.
+</ParamField>
+
+<ParamField body="status_socket" type="string" default="runtime/play_status.socket">
+  Path to the Unix domain socket used for playback status updates.
+</ParamField>
+
+<ParamField body="time_format" type="string" default="%H:%M">
+  `strftime`-style format string for displaying times in the web console and on-screen display. The default produces 24-hour time such as `14:30`.
+</ParamField>
+
+<ParamField body="date_time_format" type="string" default="%Y-%m-%dT%H:%M:%S">
+  `strftime`-style format string for date/time values stored in the schedule database and returned by the API.
+</ParamField>
+
+<ParamField body="start_mpv" type="boolean" default="true">
+  Whether FieldStation42 launches MPV automatically on startup. Set to `false` if you want to start MPV separately or use an external player integration.
+</ParamField>
+
+<ParamField body="db_path" type="string" default="runtime/fs42_fluid.db">
+  Path to the SQLite database that stores schedule state. Relative paths are resolved from the FieldStation42 root directory.
+</ParamField>
+
+<ParamField body="normalize_titles" type="boolean" default="false">
+  When `true`, filenames are parsed to extract clean, display-ready titles for the on-screen display and web console. See [custom title patterns](#custom-title-patterns) below.
+</ParamField>
+
+<ParamField body="title_patterns" type="array" default="[]">
+  List of custom regex patterns for title extraction. Patterns are tried before the built-in rules. Each element is an object with `pattern`, `group`, and `description` fields.
+</ParamField>
+
+<ParamField body="day_parts" type="object">
+  Named time periods used by the scheduler. Each key is a day part name; each value is an object with `start_hour` and `end_hour` (0–23). If omitted, the five default day parts are used. See [day parts](#day-parts) below.
+</ParamField>
+
+## Example configuration
+
+```json
+{
+  "server_host": "0.0.0.0",
+  "server_port": 4242,
+  "normalize_titles": true,
+  "day_parts": {
+    "morning": {"start_hour": 6, "end_hour": 10},
+    "daytime": {"start_hour": 10, "end_hour": 18},
+    "prime": {"start_hour": 18, "end_hour": 23},
+    "late": {"start_hour": 23, "end_hour": 2},
+    "overnight": {"start_hour": 2, "end_hour": 6}
+  }
+}
+```
+
+<Note>
+  You only need to include keys you want to change. Omitted keys keep their defaults. An empty `{}` file is valid and equivalent to having no file at all.
+</Note>
+
+## Day parts
+
+Day parts are named time periods that the scheduler uses to group content into blocks — morning talk shows, daytime drama, prime time, and so on. Each station's schedule references day part names to describe what kind of content belongs in a given hour.
+
+### Default day parts
+
+| Name | Start | End | Notes |
+|------|-------|-----|-------|
+| `morning` | 6:00 | 10:00 | |
+| `daytime` | 10:00 | 18:00 | |
+| `prime` | 18:00 | 23:00 | |
+| `late` | 23:00 | 2:00 | Wraps past midnight |
+| `overnight` | 2:00 | 6:00 | |
+
+### Midnight wrapping
+
+When `end_hour` is less than `start_hour`, the period spans midnight. For example, `late` starts at 23:00 and ends at 2:00 the following morning. The scheduler handles this automatically — no special flag is needed.
+
+### Customizing day parts
+
+You can add, rename, or redefine any day part. The names you use here must match the names referenced in your station schedules.
+
+```json
+{
+  "day_parts": {
+    "morning": {"start_hour": 5, "end_hour": 9},
+    "daytime": {"start_hour": 9, "end_hour": 17},
+    "prime": {"start_hour": 17, "end_hour": 22},
+    "late": {"start_hour": 22, "end_hour": 2},
+    "overnight": {"start_hour": 2, "end_hour": 5}
+  }
+}
+```
+
+## Custom title patterns
+
+When `normalize_titles` is `true`, FieldStation42 parses video filenames to extract clean titles for display. The built-in patterns already handle the most common naming conventions:
+
+| Filename | Extracted title |
+|----------|-----------------|
+| `Show Name - s01e05.mp4` | `Show Name` |
+| `Movie (2020).mp4` | `Movie` |
+| `[Group] Title - 03.mkv` | `Title` |
+
+If your library uses a different naming scheme, add custom patterns to `title_patterns`.
+
+### Pattern format
+
+Each pattern is an object with three fields:
+
+```json
+{
+  "pattern": "regex pattern here",
+  "group": 1,
+  "description": "What this pattern matches"
+}
+```
+
+- `pattern`: A Python-compatible regular expression string. Remember to double-escape backslashes for JSON.
+- `group`: The capture group number that contains the title (usually `1`).
+- `description`: Optional human-readable label shown in logs on startup.
+
+### How pattern matching works
+
+<Steps>
+  <Step title="Custom patterns tried first">
+    Your patterns are evaluated in the order they appear in the array. The first match wins.
+  </Step>
+  <Step title="Built-in patterns as fallback">
+    If no custom pattern matches, the built-in patterns are tried in their fixed order.
+  </Step>
+  <Step title="Filename used as-is if nothing matches">
+    If neither custom nor built-in patterns match, the raw filename (minus extension) is used as the title.
+  </Step>
+</Steps>
+
+### JSON regex escaping
+
+JSON requires backslashes to be doubled. This table maps common regex tokens to their JSON equivalents:
+
+| Regex | In JSON string |
+|-------|---------------|
+| `\d` (any digit) | `"\\d"` |
+| `\s` (whitespace) | `"\\s"` |
+| `\w` (word character) | `"\\w"` |
+| `\.` (literal period) | `"\\."` |
+| `\[` (literal bracket) | `"\\["` |
+| `[abc]` (character class) | `"[abc]"` — no change |
+| `(group)` (capture group) | `"(group)"` — no change |
+| `.*` (zero or more) | `".*"` — no change |
+| `.+?` (non-greedy) | `".+?"` — no change |
+
+### Separator pattern
+
+A common technique is a "separator" pattern that matches spaces, dots, underscores, and dashes interchangeably. This lets one pattern handle all four common word-separator styles:
+
+```json
+"pattern": "^(.+?)[\\s._-]+Episode[\\s._-]+\\d+$"
+```
+
+This matches all of the following:
+
+```
+Show Title Episode 05.mp4
+Show.Title.Episode.05.mp4
+Show_Title_Episode_05.mp4
+Show-Title-Episode-05.mp4
+```
+
+### Testing patterns
+
+Before adding a pattern to your config, test it against real filenames from your library.
+
+<Tip>
+  Use [regex101.com](https://regex101.com) with the **Python** flavor selected. Paste the pattern with single backslashes (as it will be evaluated), and paste a filename without the `.mp4` extension as the test string. Once it matches, double the backslashes when copying to JSON.
+</Tip>
+
+### Validating on startup
+
+When FieldStation42 loads `main_config.json`, it compiles every pattern and logs the results:
+
+```
+INFO: Loaded custom title pattern: Studio releases with year and episode
+INFO: Loaded custom title pattern: Remastered editions
+INFO: Loaded 2 custom title pattern(s)
+```
+
+Invalid patterns are logged and skipped — they won't crash the system, but they also won't match anything. Check the logs on startup to confirm your patterns loaded correctly.
+
+### Complete example with title patterns
+
+```json
+{
+  "server_port": 4242,
+  "normalize_titles": true,
+  "title_patterns": [
+    {
+      "pattern": "^\\[STUDIO\\][\\s._-]+(.+?)[\\s._-]+\\d{4}[\\s._-]+\\d+.*$",
+      "group": 1,
+      "description": "Studio releases with year and episode"
+    },
+    {
+      "pattern": "^(.+?)[\\s._-]+REMASTERED[\\s._-]+.*$",
+      "group": 1,
+      "description": "Remastered editions"
+    }
+  ],
+  "day_parts": {
+    "morning": {"start_hour": 6, "end_hour": 10},
+    "daytime": {"start_hour": 10, "end_hour": 18},
+    "prime": {"start_hour": 18, "end_hour": 23},
+    "late": {"start_hour": 23, "end_hour": 2},
+    "overnight": {"start_hour": 2, "end_hour": 6}
+  }
+}
+```
+
+<AccordionGroup>
+  <Accordion title="Best practices for title patterns">
+    - Add one pattern at a time and verify it in the logs before adding more.
+    - Put more specific patterns earlier in the array — the first match wins.
+    - Anchor patterns with `^` and `$` to match the full filename stem, not a substring.
+    - Use non-greedy quantifiers (`.+?` instead of `.+`) to avoid over-capturing.
+    - Always include a `description` so the log output is easy to read.
+  </Accordion>
+  <Accordion title="Error handling">
+    If a pattern has a syntax error, FieldStation42 logs a warning and skips that pattern. The system continues loading normally — a bad pattern never prevents startup. Review the startup logs to catch compilation errors before they affect title display.
+  </Accordion>
+</AccordionGroup>

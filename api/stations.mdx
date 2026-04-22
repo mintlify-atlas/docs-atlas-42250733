@@ -1,0 +1,265 @@
+---
+title: "Stations API — CRUD for Station Configs"
+description: "Create, read, update, and delete FieldStation42 station configurations. Changes take effect immediately with no server restart required."
+---
+
+The Stations API provides full CRUD operations for managing station configurations stored in the `confs/` directory. Every write and delete operation validates the configuration against the station config JSON schema and automatically reloads all stations — changes take effect immediately without restarting FieldStation42.
+
+<Note>
+The Stations API requires the `jsonschema` Python library. Install it with `pip install jsonschema` or via `pip install -r install/requirements.txt`.
+</Note>
+
+---
+
+## GET /stations
+
+Returns the raw configuration data for all stations.
+
+```bash
+curl http://localhost:4242/stations
+```
+
+**Response fields**
+
+<ResponseField name="count" type="integer">
+  Total number of station configuration files found.
+</ResponseField>
+
+<ResponseField name="stations" type="array">
+  List of raw station configuration objects, one per file in `confs/`.
+</ResponseField>
+
+```json
+{
+  "count": 3,
+  "stations": [
+    {
+      "network_name": "Guide",
+      "channel_number": 0,
+      "network_type": "guide"
+    },
+    {
+      "network_name": "Classic TV",
+      "channel_number": 5,
+      "network_type": "standard"
+    }
+  ]
+}
+```
+
+---
+
+## GET /stations/{network_name}
+
+Returns the raw configuration for a single station by its network name.
+
+<ParamField path="network_name" type="string" required>
+  The name of the station as it appears in its configuration file.
+</ParamField>
+
+```bash
+curl http://localhost:4242/stations/ClassicTV
+```
+
+**Response fields**
+
+<ResponseField name="network_name" type="string">
+  The network name that was requested.
+</ResponseField>
+
+<ResponseField name="station_config" type="object">
+  The full raw configuration object from the station's JSON file.
+</ResponseField>
+
+```json
+{
+  "network_name": "Classic TV",
+  "station_config": {
+    "network_name": "Classic TV",
+    "channel_number": 5,
+    "network_type": "standard",
+    "schedule_increment": 30
+  }
+}
+```
+
+| Status | Condition |
+|--------|-----------|
+| `200 OK` | Station found |
+| `404 Not Found` | No station with that network name exists |
+
+---
+
+## POST /stations
+
+Creates a new station configuration file in `confs/`. The file name is derived from the `network_name` field, normalised to lowercase with special characters replaced by underscores (e.g. `"My Channel 42"` → `confs/my_channel_42.json`).
+
+```bash
+curl -X POST http://localhost:4242/stations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "station_conf": {
+      "network_name": "Classic TV",
+      "channel_number": 5,
+      "network_type": "standard",
+      "schedule_increment": 30
+    }
+  }'
+```
+
+**Request body**
+
+<ParamField path="station_conf" type="object" required>
+  The full station configuration object.
+
+  <Expandable title="properties">
+    <ParamField path="network_name" type="string" required>
+      Display name of the station. Must be unique across all stations.
+    </ParamField>
+    <ParamField path="channel_number" type="integer" required>
+      Channel number for tuning. Must be unique across all stations.
+    </ParamField>
+    <ParamField path="network_type" type="string">
+      Station type. Common values: `"standard"`, `"guide"`, `"loop"`, `"web"`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Response fields**
+
+<ResponseField name="success" type="boolean">
+  `true` when the station was created successfully.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable result message.
+</ResponseField>
+
+<ResponseField name="network_name" type="string">
+  The network name of the newly created station.
+</ResponseField>
+
+<ResponseField name="channel_number" type="integer">
+  The channel number of the newly created station.
+</ResponseField>
+
+<ResponseField name="file_path" type="string">
+  Relative path to the configuration file that was written (e.g. `"confs/classic_tv.json"`).
+</ResponseField>
+
+```json
+{
+  "success": true,
+  "message": "Station configuration saved successfully",
+  "network_name": "Classic TV",
+  "channel_number": 5,
+  "file_path": "confs/classic_tv.json"
+}
+```
+
+| Status | Condition |
+|--------|-----------|
+| `201 Created` | Station created successfully |
+| `400 Bad Request` | Missing required field or schema validation failure |
+| `409 Conflict` | A station with this `network_name` already exists, or the `channel_number` is in use |
+
+**Validation rules**
+
+- `network_name` must not already exist (use `PUT` to update).
+- `channel_number` must be unique across all stations.
+- The full configuration is validated against `fs42/station_config_schema.json`.
+- Missing media files generate log warnings but do not block creation.
+
+---
+
+## PUT /stations/{network_name}
+
+Updates an existing station configuration. The `network_name` in the URL identifies which station to update; the name can be changed by supplying a different `network_name` in the request body, which deletes the old file and creates a new one.
+
+<ParamField path="network_name" type="string" required>
+  The current network name of the station to update (used to locate the existing file).
+</ParamField>
+
+```bash
+curl -X PUT http://localhost:4242/stations/ClassicTV \
+  -H "Content-Type: application/json" \
+  -d '{
+    "station_conf": {
+      "network_name": "Classic TV Remastered",
+      "channel_number": 5,
+      "network_type": "standard",
+      "schedule_increment": 60
+    }
+  }'
+```
+
+**Request body**
+
+Same shape as `POST /stations`. Uniqueness checks for `channel_number` and `network_name` exclude the station being updated, so it can retain its own values.
+
+**Response**
+
+Same fields as `POST /stations`, reflecting the updated station.
+
+| Status | Condition |
+|--------|-----------|
+| `200 OK` | Station updated successfully |
+| `400 Bad Request` | Validation failure |
+| `404 Not Found` | No station with the URL `network_name` exists |
+| `409 Conflict` | The new `channel_number` or `network_name` conflicts with another station |
+
+<Warning>
+When renaming a station (changing `network_name` in the body), a backup of the old file is created as a `.bak` file before the original is deleted. Only one backup is kept per station; a previous backup will be overwritten.
+</Warning>
+
+---
+
+## DELETE /stations/{network_name}
+
+Deletes a station configuration. A `.bak` backup is created before deletion. After a successful delete, all station configurations are automatically reloaded.
+
+<ParamField path="network_name" type="string" required>
+  The network name of the station to delete.
+</ParamField>
+
+```bash
+curl -X DELETE http://localhost:4242/stations/ClassicTV
+```
+
+**Response fields**
+
+<ResponseField name="success" type="boolean">
+  `true` when the station was deleted.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message including the station name.
+</ResponseField>
+
+<ResponseField name="network_name" type="string">
+  The network name of the deleted station.
+</ResponseField>
+
+```json
+{
+  "success": true,
+  "message": "Station 'Classic TV' deleted successfully",
+  "network_name": "Classic TV"
+}
+```
+
+| Status | Condition |
+|--------|-----------|
+| `200 OK` | Station deleted |
+| `404 Not Found` | Station does not exist |
+| `500 Internal Server Error` | File deletion failed |
+
+---
+
+## File management notes
+
+- **Location:** All station configs are stored in `confs/`.
+- **Naming:** Network names are normalised to lowercase; spaces and special characters become underscores. Example: `"My Channel 42"` → `confs/my_channel_42.json`.
+- **Backups:** A `.bak` file is created before every update or delete. Only one backup is kept per station.
+- **Auto-reload:** After every create, update, or delete the server re-reads and re-indexes all station files immediately — no restart required.
+- **Main config:** `confs/main_config.json` is not accessible or modifiable through this API.

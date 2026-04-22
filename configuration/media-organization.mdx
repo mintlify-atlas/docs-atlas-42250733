@@ -1,0 +1,165 @@
+---
+title: "Media Library Organization for FieldStation42"
+description: "How to structure your video files, bumpers, and commercials so FieldStation42 can index, schedule, and play them correctly across your channels."
+---
+
+FieldStation42 does not manage your media files — it reads them from directories you control. The directory structure you choose becomes the tagging system the scheduler uses to match content to time slots. Getting the layout right before you build your first channel saves a catalog rebuild later.
+
+## Directory roles
+
+Each station configuration references several directories. All paths in a station config are relative to the FieldStation42 root directory.
+
+<CardGroup cols={2}>
+  <Card title="content_dir" icon="folder-open">
+    Your video library. Subdirectory names become the tags used in scheduling. This is the directory the catalog indexes.
+  </Card>
+  <Card title="bump_dir" icon="film">
+    Station bumpers and interstitial clips played between shows or at the start and end of commercial breaks.
+  </Card>
+  <Card title="commercial_dir" icon="rectangle-ad">
+    Commercial clips inserted during scheduled break slots. The scheduler picks clips from this directory to fill break time.
+  </Card>
+  <Card title="runtime_dir" icon="database">
+    Runtime data directory where FieldStation42 writes the catalog binary and schedule binary for this station.
+  </Card>
+  <Card title="logo_dir" icon="image">
+    Station logo images for the on-screen display overlay. Referenced by `default_logo` and related display properties in the station config.
+  </Card>
+</CardGroup>
+
+## The tagging system
+
+The most important concept in media organization is the **tag**. A tag is simply a subdirectory path inside `content_dir`. When you schedule a time slot with `"tags": "sitcoms"`, the scheduler looks for video files anywhere under `content_dir/sitcoms/`.
+
+Tags can be nested to any depth, and the full relative path from `content_dir` is the tag:
+
+| Directory | Tag |
+|-----------|-----|
+| `catalog/content/sitcoms/` | `sitcoms` |
+| `catalog/content/sitcoms/friends/` | `sitcoms/friends` |
+| `catalog/content/movies/action/` | `movies/action` |
+| `catalog/content/movies/comedy/` | `movies/comedy` |
+
+When a slot is scheduled with `"tags": "sitcoms"`, the scheduler can pull content from any subdirectory under `sitcoms/`, including `sitcoms/friends/` and any other sub-folders. This lets you schedule broad categories and still organize your files precisely.
+
+### Tag overrides with hierarchical tags
+
+Hierarchical tags enable **tag overrides** — a way to apply show-specific bumpers, commercials, or break strategies automatically when the scheduler picks content from a nested folder. For example, if a slot is scheduled for `"sitcoms"` but the scheduler picks an episode from `sitcoms/friends/`, you can define a `sitcoms/friends` tag override that automatically swaps in Friends-specific bumpers:
+
+```json
+"tag_overrides": {
+  "sitcoms/friends": {
+    "start_bump": "extra/friends_start.mp4",
+    "commercial_dir": "extra/friends_commercials"
+  }
+}
+```
+
+See the [channel configuration reference](/channels/advanced-features) for full tag override documentation.
+
+<Tip>
+  Organize content by show or genre hierarchy for the best scheduling flexibility. A structure like `content/sitcoms/show-name/` gives you both broad (`sitcoms`) and specific (`sitcoms/show-name`) scheduling handles in one layout.
+</Tip>
+
+## Example directory structure
+
+```
+catalog/
+├── content/              ← content_dir for a station
+│   ├── sitcoms/
+│   │   ├── friends/
+│   │   │   ├── Friends - s01e01.mp4
+│   │   │   └── Friends - s01e02.mp4
+│   │   └── seinfeld/
+│   │       └── Seinfeld - s03e01.mp4
+│   ├── movies/
+│   │   ├── action/
+│   │   └── comedy/
+│   ├── news/
+│   ├── cartoon/
+│   └── classic/
+├── commercial/           ← commercial_dir
+│   └── spot-30s.mp4
+└── bump/                 ← bump_dir
+    └── station-id.mp4
+
+runtime/                  ← runtime_dir (written by FieldStation42)
+├── nbc_catalog.bin       ← catalog_path
+└── nbc_schedule.bin      ← schedule_path
+
+logos/                    ← logo_dir
+└── StationLogo.png
+```
+
+## The catalog
+
+The catalog is a binary index of all video files in your `content_dir`. FieldStation42 scans the directory tree, records each file's path, duration, and tag, and writes the result to `catalog_path`. The scheduler reads the catalog to pick content for each time slot — it never scans the filesystem at runtime.
+
+**Rebuild the catalog when:**
+- You add, remove, or move video files
+- You rename or reorganize subdirectories
+- A file's duration changes (re-encodes, replacements)
+
+**How to rebuild:**
+
+<Tabs>
+  <Tab title="Web console">
+    Open the web console at `http://localhost:4242`, navigate to your channel, and click **Rebuild Catalog**.
+  </Tab>
+  <Tab title="Command line">
+    ```bash
+    python3 station_42.py -r ChannelName
+    ```
+    Replace `ChannelName` with the `network_name` from your station config.
+  </Tab>
+</Tabs>
+
+<Warning>
+  Changing your content directory structure — renaming folders, moving files to new subdirectories, or changing the value of `content_dir` in your station config — requires a catalog rebuild. Schedules built from the old catalog will reference files at their previous paths and may fail to play until both the catalog and schedule are rebuilt.
+</Warning>
+
+## The schedule
+
+The schedule is a binary file containing pre-built schedule blocks for your station. FieldStation42 generates schedule blocks ahead of time and stores them in `schedule_path`. When a time slot arrives, the system reads the pre-built block and queues the content — it does not pick content on the fly.
+
+**Add time to the schedule:**
+
+```bash
+# Add one week
+python3 station_42.py -w
+
+# Add one month
+python3 station_42.py -m
+
+# Add one day
+python3 station_42.py -d
+```
+
+Schedule files grow as you add time. The web console shows how far ahead your schedule is built for each channel.
+
+## Supported file types
+
+FieldStation42 plays any video file that MPV supports. Common formats include:
+
+- `mp4`, `mkv`, `avi`, `mov`, `wmv`, `flv`, `webm`
+- Audio-only files are also supported when `media_filter` is set to `"audio"` or `"mixed"` in the station config
+
+The catalog indexes all files in your `content_dir` tree. Files in formats MPV cannot open will be cataloged but will fail at playback time. Stick to widely-supported containers like MP4 and MKV for the most reliable results.
+
+## File naming and title normalization
+
+By default, FieldStation42 uses the raw filename (minus extension) as the display title. If you enable `normalize_titles: true` in `confs/main_config.json`, filenames are parsed to extract cleaner titles.
+
+The built-in patterns handle the most common conventions:
+
+| Filename | Display title |
+|----------|---------------|
+| `Show Name - s01e05.mp4` | `Show Name` |
+| `Movie (2020).mp4` | `Movie` |
+| `[Group] Title - 03.mkv` | `Title` |
+
+For non-standard naming schemes, you can add custom patterns. See [custom title patterns](/configuration/main-config#custom-title-patterns) in the global configuration reference.
+
+<Note>
+  Title normalization affects only what is displayed in the web console, the on-screen display, and API responses. It does not rename or modify your actual files.
+</Note>

@@ -1,0 +1,219 @@
+---
+title: "Installing FieldStation42 on Linux and Raspberry Pi"
+description: "System requirements, Python dependencies, step-by-step installation, systemd service setup, and a full CLI reference for station_42.py."
+---
+
+FieldStation42 installs on any Linux machine capable of running Python 3.10 and MPV. This page covers everything from system requirements and Python dependencies through running FieldStation42 as a persistent systemd service.
+
+## System requirements
+
+| Requirement | Details |
+|-------------|---------|
+| Operating system | Linux — Raspberry Pi OS Bookworm recommended, Ubuntu, Mint, Debian, or WSL on Windows |
+| Python | 3.10 or newer |
+| Media player | MPV |
+| Package tools | `python3-pip`, `python3-venv` |
+
+<Tip>
+  On Windows, run FieldStation42 inside WSL (Windows Subsystem for Linux). Install Ubuntu from the Microsoft Store, then follow the Linux installation steps below.
+</Tip>
+
+<Warning>
+  On Raspberry Pi, large catalogs (thousands of media files) can approach the memory limit of low-RAM models. Use the `--limit_memory` flag when rebuilding catalogs on Pi hardware, or consider a Pi 4 or Pi 5 with at least 4 GB of RAM.
+</Warning>
+
+## Python dependencies
+
+The installer reads from `install/requirements.in` and installs the following packages into a virtual environment:
+
+| Package | Purpose |
+|---------|---------|
+| `fastapi` | Web API framework for the REST server |
+| `uvicorn` | ASGI server that runs FastAPI |
+| `ffmpeg-python` | Python bindings for FFmpeg |
+| `moviepy` | Video processing for catalog analysis |
+| `pyside6` | Qt bindings for the graphical interface (`-g`) |
+| `textual` | Terminal UI framework |
+| `python-mpv-jsonipc` | IPC bridge between Python and the MPV media player |
+| `glfw` | OpenGL window management |
+| `pyopengl` | OpenGL bindings |
+| `pyserial` | Serial port access for IR remote hardware |
+| `pillow` | Image processing |
+| `numpy` | Numerical operations used by moviepy |
+| `pydantic` | Data validation for the FastAPI models |
+
+All transitive dependencies are pinned in `install/requirements.txt`, generated with `pip-compile` against Python 3.10.
+
+## Installation steps
+
+<Steps>
+  <Step title="Install system packages">
+    Install MPV, Python, and the virtualenv tools:
+
+    ```bash
+    sudo apt-get install mpv python3 python3-pip python3-venv
+    ```
+
+    If you plan to use web-type channels on Raspberry Pi OS Bookworm, also run:
+
+    ```bash
+    sudo bash install/web_reqs.sh
+    ```
+  </Step>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/shane-mason/FieldStation42
+    cd FieldStation42
+    ```
+  </Step>
+  <Step title="Run the installer">
+    ```bash
+    bash install.sh
+    ```
+
+    The installer:
+    - Creates a Python virtual environment at `env/`
+    - Installs all Python dependencies from `install/requirements.in`
+    - Creates the `runtime/` and `catalog/` directories
+    - Copies default media assets (static, standby, off-air patterns) into `runtime/`
+
+    Existing configuration files are never overwritten.
+  </Step>
+  <Step title="Activate the virtual environment">
+    ```bash
+    source env/bin/activate
+    ```
+
+    Run this command every time you open a new terminal session before using `station_42.py`.
+  </Step>
+</Steps>
+
+## Running as a systemd service
+
+To have FieldStation42 start automatically at login without keeping a terminal open, install it as systemd user services:
+
+```bash
+bash install/install_services.sh
+```
+
+The script installs service unit files to `~/.config/systemd/user/` and interactively prompts you to enable each available service:
+
+| Service | Description |
+|---------|-------------|
+| `fs42.service` | Main content playback service (core functionality) |
+| `fs42-cable-box.service` | Cable box interface |
+| `fs42-remote-controller.service` | Remote controller interface |
+| `fs42-osd.service` | On-screen display overlay (starts 30 s after login) |
+
+After enabling services, they start automatically on next login. To start them immediately without logging out:
+
+```bash
+systemctl --user start fs42.service
+```
+
+Useful service management commands:
+
+```bash
+# Check status of all FS42 services
+systemctl --user status fs42*
+
+# View live logs for a service
+journalctl --user -u fs42.service -f
+
+# Restart a service
+systemctl --user restart fs42.service
+
+# Stop a service
+systemctl --user stop fs42.service
+```
+
+## Uninstalling services
+
+To remove the systemd services:
+
+```bash
+bash install/uninstall_services.sh
+```
+
+This removes the unit files and disables the services without touching your media library or configuration files.
+
+## CLI reference
+
+`station_42.py` is the main entry point for FieldStation42. Running it with no arguments starts the web API server. Pass flags to perform catalog, schedule, and diagnostic operations.
+
+```bash
+python3 station_42.py [options]
+```
+
+### General options
+
+| Flag | Long form | Description |
+|------|-----------|-------------|
+| `-g` | `--graphical_interface` | Launch the terminal graphical interface to configure catalogs and schedules |
+| `-l FILE` | `--logfile FILE` | Append log output to a file instead of stdout |
+| `-v` | `--verbose` | Enable debug-level logging |
+| `-s` | `--server` | Start the web API server after completing other actions |
+| `-f` | `--force` | With `-r` or `-x`: force deletion of failing schedules or catalogs |
+| `--limit_memory N` | | Limit memory usage to a fraction of available RAM (0.1–1.0) |
+| `--skip_chapter_scan` | | Skip automatic chapter scanning during catalog rebuild |
+| `--reset_chapters` | | Clear all cached chapter markers from the database |
+| `--reset_breaks` | | Clear all cached break points from the database |
+
+### Catalog operations
+
+| Flag | Long form | Description |
+|------|-----------|-------------|
+| `-r [NAMES…]` | `--rebuild_catalog` | Rebuild catalog for named stations, or all stations if none specified |
+| `-c [NAMES…]` | `--check_catalogs` | Check catalogs for named stations and print a report |
+| `-p NAME` | `--printcat NAME` | Print the full catalog listing for a station |
+
+### Schedule operations
+
+| Flag | Long form | Description |
+|------|-----------|-------------|
+| `-d [NAMES…]` | `--add_day` | Add one day to named stations, or all stations |
+| `-w [NAMES…]` | `--add_week` | Add one week to named stations, or all stations |
+| `-m [NAMES…]` | `--add_month` | Add one month to named stations, or all stations |
+| `-e` | `--schedule` | Print a schedule summary for all stations |
+| `-u NAME` | `--print_schedule NAME` | Print the current day's schedule for a named station |
+| `-x [NAMES…]` | `--delete_schedules` | Delete schedules for named stations, or all stations |
+
+### Sequence operations
+
+| Flag | Long form | Description |
+|------|-----------|-------------|
+| `-q [NAMES…]` | `--rebuild_sequences` | Restart sequences for named stations (takes effect on next schedule build) |
+| `-a [NAMES…]` | `--scan_sequences` | Scan for new sequences added to channel configurations |
+
+### Media analysis
+
+| Flag | Long form | Description |
+|------|-----------|-------------|
+| `-b DIR` | `--break_detect_dir DIR` | Scan media files in a directory for commercial break insertion points (experimental) |
+| `-t DIR` | `--chapter_detect_dir DIR` | Scan media files in a directory for chapter markers |
+
+### Common usage examples
+
+Rebuild the catalog for a station named `retro-network`:
+
+```bash
+python3 station_42.py -r retro-network
+```
+
+Add a week of schedule to all stations, then start the web server:
+
+```bash
+python3 station_42.py -w -s
+```
+
+Print today's schedule for a station and exit:
+
+```bash
+python3 station_42.py -u retro-network
+```
+
+Force-rebuild all catalogs and delete failing schedules:
+
+```bash
+python3 station_42.py -r -f
+```

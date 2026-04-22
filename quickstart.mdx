@@ -1,80 +1,88 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Get started with FieldStation42: installation and setup"
+description: "Install FieldStation42 on Linux or Raspberry Pi, start the web console, and open your browser to configure your first channel in minutes."
 ---
 
-## Get started in three steps
+This guide walks you through installing FieldStation42 and launching the web console for the first time. By the end you will have the server running locally and be ready to create your first channel.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, make sure you have the following:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- A machine running Linux (Raspberry Pi OS Bookworm, Ubuntu, Mint, Debian, or WSL on Windows)
+- Python 3.10 or newer
+- MPV media player
+- `git` installed and available on your `PATH`
 
-### Step 2: Deploy your changes
+## Installation steps
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<Steps>
+  <Step title="Install system packages">
+    Install MPV, Python, and the venv module using your system package manager:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    ```bash
+    sudo apt-get install mpv python3 python3-pip python3-venv
+    ```
+  </Step>
+  <Step title="Clone the repository">
+    Clone FieldStation42 from GitHub and enter the project directory:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash
+    git clone https://github.com/shane-mason/FieldStation42
+    cd FieldStation42
+    ```
+  </Step>
+  <Step title="Run the installer">
+    The installer creates a Python virtual environment, installs all dependencies, and sets up the required runtime directories:
 
-### Step 3: Go live
+    ```bash
+    bash install.sh
+    ```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    Press **Enter** when prompted to proceed. The installer will not overwrite any existing configuration files.
+  </Step>
+  <Step title="Activate the virtual environment">
+    Activate the Python virtual environment before running any FieldStation42 commands:
+
+    ```bash
+    source env/bin/activate
+    ```
+
+    You will need to run this command each time you open a new terminal session.
+  </Step>
+  <Step title="Start the web console">
+    Start the FieldStation42 web server:
+
+    ```bash
+    python3 station_42.py
+    ```
+
+    Running `station_42.py` with no arguments starts the web API server automatically.
+  </Step>
+  <Step title="Open the web console">
+    Open a browser and navigate to:
+
+    ```
+    http://localhost:4242
+    ```
+
+    The web console lets you create and manage channels, rebuild catalogs, generate schedules, and monitor playback status — all without using the command line.
+  </Step>
+</Steps>
+
+<Note>
+  The web console is also accessible from other devices on your local network. Use your machine's IP address in place of `localhost` to reach it from a phone or another computer.
+</Note>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
+With the server running, you are ready to set up your first channel. The channel configuration guide covers how to organize your media library, create a channel definition, and build your first schedule.
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Channel configuration" icon="tv" href="/channels/overview">
+    Learn how to create channels, point them at your media library, and generate a schedule.
+  </Card>
+  <Card title="Installation details" icon="download" href="/installation">
+    Systemd service setup, CLI reference, and advanced configuration options.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

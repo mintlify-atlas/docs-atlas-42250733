@@ -1,0 +1,225 @@
+---
+title: 'Create Your First FieldStation42 Channel'
+description: 'A complete walkthrough for setting up a standard broadcast channel in FieldStation42, from organizing your media files to tuning in on your TV.'
+---
+
+This guide walks you through creating a traditional broadcast-style channel in FieldStation42 from scratch. By the end, you will have a fully scheduled channel with a catalog of content, commercial breaks, and a weekly programming lineup ready to tune into.
+
+<Info>
+  You can follow this guide entirely from the command line, or use the web console at `http://localhost:4242` to complete most steps visually. Both approaches are covered below.
+</Info>
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="FieldStation42 installed" icon="server">
+    FieldStation42 is installed and the web console starts when you run `python3 station_42.py`.
+  </Card>
+  <Card title="Video files ready" icon="film">
+    You have some video files on disk to use as content, commercials, or bumps.
+  </Card>
+</CardGroup>
+
+## Steps
+
+<Steps>
+  <Step title="Organize your media files">
+    FieldStation42 discovers content by scanning directories. The `content_dir` you specify in your channel config is the root of your media library. Within it, subdirectories become **tags** — the labels you use in your weekly schedule to say "play something from this folder at this time."
+
+    A typical layout looks like this:
+
+    ```text
+    catalog/
+    └── mychannel/
+        ├── sitcoms/
+        │   ├── show-a/
+        │   └── show-b/
+        ├── movies/
+        ├── classic/
+        └── news/
+    commercial/
+    bump/
+    ```
+
+    You can name subdirectories anything you like. Whatever name you use becomes the tag you reference in the schedule (e.g., a folder called `sitcoms` maps to the tag `"sitcoms"`).
+
+    <Tip>
+      Deeper nesting works too. A folder at `sitcoms/friends` creates the tag `sitcoms/friends`, which you can target specifically in a time slot or use tag overrides to apply custom bumps and commercials automatically.
+    </Tip>
+  </Step>
+
+  <Step title="Create the channel config file">
+    Channel configurations live in the `confs/` directory at the root of your FieldStation42 installation. Each file is a JSON document with a `station_conf` object.
+
+    Create `confs/mychannel.json` with the two required fields:
+
+    ```json
+    {
+      "station_conf": {
+        "network_name": "MyChannel",
+        "channel_number": 5
+      }
+    }
+    ```
+
+    `network_name` is the display name used throughout the system. `channel_number` is what you tune to. Both are required — all other properties have sensible defaults.
+
+    <Tip>
+      You can also create and edit channel configs from the web console at `http://localhost:4242` without touching the file directly.
+    </Tip>
+  </Step>
+
+  <Step title="Set the network type and content directory">
+    Add `network_type` and `content_dir` to your config. For a standard broadcast-style channel with a weekly schedule, use `"standard"`. Set `content_dir` to the path of your media root, relative to the FieldStation42 installation directory.
+
+    ```json
+    {
+      "station_conf": {
+        "network_name": "MyChannel",
+        "channel_number": 5,
+        "network_type": "standard",
+        "content_dir": "catalog/mychannel"
+      }
+    }
+    ```
+
+    Other useful network types are `"loop"` (plays content in a continuous loop), `"streaming"` (for HLS/m3u8 feeds), `"guide"` (interactive program guide), and `"web"` (embeds a web page).
+  </Step>
+
+  <Step title="Add a weekly schedule">
+    Standard channels require all seven days to be defined — even if a day is entirely off-air (use an empty object `{}`). Hour keys are strings `"0"` through `"23"`. Hours not listed are treated as off-air.
+
+    Here is a condensed weekly schedule based on a traditional broadcast layout:
+
+    ```json
+    {
+      "station_conf": {
+        "network_name": "MyChannel",
+        "channel_number": 5,
+        "network_type": "standard",
+        "content_dir": "catalog/mychannel",
+        "schedule_increment": 30,
+        "break_strategy": "standard",
+        "break_duration": 120,
+
+        "monday": {
+          "7":  {"tags": "morning"},
+          "9":  {"tags": "classic"},
+          "12": {"tags": "movies"},
+          "18": {"tags": "news"},
+          "20": {"tags": "sitcoms"},
+          "22": {"tags": "movies"},
+          "23": {"tags": "classic"}
+        },
+        "tuesday":   {"7": {"tags": "morning"}, "12": {"tags": "movies"}, "20": {"tags": "sitcoms"}},
+        "wednesday": {"7": {"tags": "morning"}, "12": {"tags": "movies"}, "20": {"tags": "sitcoms"}},
+        "thursday":  {"7": {"tags": "morning"}, "12": {"tags": "movies"}, "20": {"tags": "sitcoms"}},
+        "friday":    {"7": {"tags": "morning"}, "12": {"tags": "movies"}, "20": {"tags": "sitcoms"}},
+        "saturday":  {"9": {"tags": "classic"}, "14": {"tags": "movies"}, "20": {"tags": "sitcoms"}},
+        "sunday":    {}
+      }
+    }
+    ```
+
+    The `tags` value in each slot corresponds to a subdirectory name under your `content_dir`. The scheduler picks a random episode from that folder to fill the time.
+
+    <Warning>
+      Standard channels require all 7 days to be present in the config. If you omit a day, the schedule builder will fail. An empty object `{}` is valid for a fully off-air day.
+    </Warning>
+  </Step>
+
+  <Step title="Add commercials and bumps (optional)">
+    If you have short clips to use as commercial breaks or station bumps, add `commercial_dir` and `bump_dir` to your config. Both paths are relative to the FieldStation42 root directory.
+
+    ```json
+    "commercial_dir": "commercial",
+    "bump_dir": "bump"
+    ```
+
+    If you do not have commercials, set `"commercial_free": true` to skip break insertion entirely:
+
+    ```json
+    "commercial_free": true
+    ```
+  </Step>
+
+  <Step title="Build the catalog">
+    The catalog is a database of all media files found under your `content_dir`. You must build it before the schedule builder can select content.
+
+    <Tabs>
+      <Tab title="Command line">
+        ```bash
+        python3 station_42.py -r MyChannel
+        ```
+
+        Replace `MyChannel` with the exact value of `network_name` in your config. To rebuild all channels at once, omit the name:
+
+        ```bash
+        python3 station_42.py -r
+        ```
+      </Tab>
+      <Tab title="Web console">
+        Open `http://localhost:4242`, select your channel, and click **Rebuild Catalog**.
+      </Tab>
+    </Tabs>
+
+    The catalog scan also detects chapter markers in your media files. Use `--skip_chapter_scan` to skip this step if it is taking too long on a large library.
+  </Step>
+
+  <Step title="Build the schedule">
+    Once the catalog is built, generate a week of programming:
+
+    <Tabs>
+      <Tab title="Command line">
+        ```bash
+        python3 station_42.py -w MyChannel
+        ```
+
+        This adds one week of scheduled time slots. Run it again to extend the schedule further. You can also add a month at a time with `-m`.
+      </Tab>
+      <Tab title="Web console">
+        Open `http://localhost:4242`, select your channel, and click **Add Week**.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Start the player">
+    Start FieldStation42 if it is not already running:
+
+    ```bash
+    python3 station_42.py
+    ```
+
+    With no flags, this starts the web console and the field player. The player begins playback on the last active channel.
+
+    To run as a background service that starts automatically on boot, see [Running as a Systemd Service](/guides/running-as-service).
+  </Step>
+
+  <Step title="Tune to your channel">
+    Flip to channel 5 using the web remote, an IR remote, or the API directly:
+
+    ```bash
+    # Via the API
+    curl http://localhost:4242/player/channels/5
+    ```
+
+    You can also use the web remote at `http://localhost:4242/remote` to enter the channel number directly from your phone or browser.
+  </Step>
+</Steps>
+
+## Common gotchas
+
+<AccordionGroup>
+  <Accordion title="All 7 days are required for standard channels">
+    The schedule builder expects `monday` through `sunday` to all be present in a `standard` network config. Missing any of them causes the build to fail. Days you want to be entirely off-air should be empty objects: `"sunday": {}`.
+  </Accordion>
+  <Accordion title="File paths are relative to the FieldStation42 root">
+    Every path in a station config — `content_dir`, `commercial_dir`, `bump_dir`, `catalog_path`, etc. — is resolved relative to the directory you run `station_42.py` from. Do not use absolute paths or paths with `~/`.
+  </Accordion>
+  <Accordion title="Tags must match actual subdirectory names">
+    If a time slot references a tag like `"sitcoms"` but there is no `sitcoms/` folder under your `content_dir`, the schedule builder will fail to find content for that slot. Set a `fallback_tag` in your config to specify a backup directory to use when a tag is empty or missing.
+  </Accordion>
+  <Accordion title="Catalog must be rebuilt when you add new files">
+    Adding new video files to your content directories does not automatically update the catalog. Run `python3 station_42.py -r MyChannel` (or use the web console) whenever you add new content.
+  </Accordion>
+</AccordionGroup>
